@@ -432,6 +432,54 @@
     #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
     #toast.ok   { color: var(--lime); border-color: rgba(200,255,0,.28); }
     #toast.warn { color: #FFCC00; border-color: rgba(255,204,0,.28); }
+
+    /* ── BUDGET SCREEN ── */
+    #s-budget { background: var(--bg); }
+    .budget-list { flex: 1; overflow-y: auto; padding: 12px 18px 32px; display: flex; flex-direction: column; gap: 12px; }
+    .budget-list::-webkit-scrollbar { display: none; }
+
+    .budget-card {
+      background: var(--bg2); border: 1px solid var(--border); border-radius: 18px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px;
+    }
+    .budget-card-top { display: flex; align-items: center; gap: 10px; }
+    .budget-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .budget-name { flex: 1; font-size: 15px; font-weight: 700; color: var(--text); }
+    .budget-period-chips { display: flex; gap: 5px; }
+    .bpchip {
+      padding: 4px 9px; border-radius: 8px; font-size: 11px; font-weight: 700; letter-spacing: .04em;
+      background: var(--bg3); border: 1.5px solid transparent; color: var(--muted); cursor: pointer;
+      font-family: 'Bricolage Grotesque', sans-serif; transition: background .13s, color .13s, border-color .13s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .bpchip.active { background: rgba(200,255,0,.12); border-color: var(--lime); color: var(--lime); }
+
+    .budget-limit-row { display: flex; align-items: center; gap: 8px; }
+    .budget-limit-label { font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); flex: 1; }
+    .budget-limit-input {
+      background: var(--bg3); border: 1.5px solid var(--border2); border-radius: 10px;
+      color: var(--text); font-family: 'DM Mono', monospace; font-size: 15px; font-weight: 500;
+      padding: 7px 10px; width: 130px; text-align: right; outline: none;
+      transition: border-color .15s;
+    }
+    .budget-limit-input:focus { border-color: rgba(200,255,0,.4); }
+
+    .budget-bar-wrap { display: flex; align-items: center; gap: 10px; }
+    .budget-bar-track {
+      flex: 1; height: 8px; background: var(--bg3); border-radius: 99px; overflow: hidden;
+    }
+    .budget-bar-fill {
+      height: 100%; border-radius: 99px; transition: width .5s cubic-bezier(0.34,1.2,0.64,1), background .3s;
+      background: var(--lime);
+    }
+    .budget-bar-fill.warn { background: #FFAA00; }
+    .budget-bar-fill.over { background: var(--red); }
+    .budget-pct { font-size: 12px; font-weight: 700; font-family: 'DM Mono', monospace; color: var(--muted); min-width: 38px; text-align: right; }
+    .budget-pct.warn { color: #FFAA00; }
+    .budget-pct.over { color: var(--red); }
+
+    .budget-amounts { font-size: 12px; font-weight: 500; color: var(--muted); }
+    .budget-amounts span { color: var(--text); font-weight: 700; }
+    .budget-no-limit { font-size: 13px; color: var(--muted); font-style: italic; }
   </style>
 </head>
 <body>
@@ -463,6 +511,11 @@
         <div class="np-actions">
           <button class="avatar-btn" id="btn-profile" title="Account">
             <svg id="profile-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+          </button>
+          <button class="icon-btn" id="btn-budget" title="Budgets">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/>
+            </svg>
           </button>
           <button class="icon-btn" id="btn-hist" title="History">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -571,6 +624,17 @@
       </div>
       <div class="chart-period" id="chart-period"></div>
       <div class="chart-body" id="chart-body"></div>
+    </div>
+
+    <!-- ══ SCREEN 5: BUDGET ══ -->
+    <div class="screen off-right" id="s-budget">
+      <div class="hist-header">
+        <button class="back-btn" id="btn-back-budget">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <span class="hist-title">Budgets</span>
+      </div>
+      <div class="budget-list" id="budget-list"></div>
     </div>
 
     <!-- ══ EDIT MODAL ══ -->
@@ -855,6 +919,148 @@
         document.getElementById('s-chart').classList.add('off-right');
         document.getElementById('s-history').classList.remove('off-left','off-right');
         screen='history';
+      } else if (screen==='budget') {
+        document.getElementById('s-budget').classList.add('off-right');
+        document.getElementById('s-numpad').classList.remove('off-left','off-right');
+        screen='numpad';
+      }
+    }
+
+    function slideToBudget() {
+      document.getElementById('s-numpad').classList.add('off-left');
+      document.getElementById('s-budget').classList.remove('off-right','off-left');
+      screen='budget';
+      renderBudgetScreen();
+    }
+
+    // ════════════════════════════
+    // BUDGET
+    // ════════════════════════════
+    function budgetKey() { return `spend_budgets_${currentUser?.id || 'anon'}`; }
+    function loadBudgets() {
+      try { return JSON.parse(localStorage.getItem(budgetKey())) || {}; } catch { return {}; }
+    }
+    function saveBudgets(b) { localStorage.setItem(budgetKey(), JSON.stringify(b)); }
+
+    function spentInPeriod(period, labelName) {
+      const start = periodStart(period);
+      return allTxData
+        .filter(t => (!start || t.created_at >= start) && (!labelName || t.label_name === labelName))
+        .reduce((s, t) => s + parseFloat(t.amount), 0);
+    }
+
+    function renderBudgetScreen() {
+      const budgets = loadBudgets();
+      const list = document.getElementById('budget-list');
+      list.innerHTML = '';
+
+      // Overall budget row
+      const overallEntry = budgets.overall || { limit: '', period: 'monthly' };
+      list.appendChild(buildBudgetCard('overall', 'Overall', '#888', overallEntry, budgets));
+
+      // Per-label rows
+      if (labels.length === 0) {
+        const msg = document.createElement('div');
+        msg.style.cssText = 'color:var(--muted);font-size:13px;padding:4px 2px;';
+        msg.textContent = 'Add labels to set per-label budgets.';
+        list.appendChild(msg);
+      } else {
+        labels.forEach(lbl => {
+          const entry = (budgets.labels || {})[lbl.name] || { limit: '', period: 'monthly' };
+          const { bg } = chipColor(lbl.name);
+          list.appendChild(buildBudgetCard('label_' + lbl.name, lbl.name, bg, entry, budgets));
+        });
+      }
+    }
+
+    function buildBudgetCard(key, name, dotColor, entry, budgets) {
+      const isOverall = key === 'overall';
+      const labelName = isOverall ? null : name;
+      const limit = parseFloat(entry.limit) || 0;
+      const period = entry.period || 'monthly';
+      const spent = allTxData.length > 0 ? spentInPeriod(period, labelName) : 0;
+      const pct = limit > 0 ? Math.min(spent / limit * 100, 100) : 0;
+      const over = limit > 0 && spent >= limit;
+      const warn = limit > 0 && pct >= 80 && !over;
+
+      const card = document.createElement('div');
+      card.className = 'budget-card';
+
+      const periods = [['D','daily'],['W','weekly'],['M','monthly'],['Y','yearly']];
+
+      card.innerHTML = `
+        <div class="budget-card-top">
+          <div class="budget-dot" style="background:${dotColor}"></div>
+          <div class="budget-name">${name}</div>
+          <div class="budget-period-chips">
+            ${periods.map(([lbl,val])=>`<button class="bpchip${period===val?' active':''}" data-key="${key}" data-period="${val}">${lbl}</button>`).join('')}
+          </div>
+        </div>
+        <div class="budget-limit-row">
+          <span class="budget-limit-label">Limit</span>
+          <input class="budget-limit-input" data-key="${key}" type="number" inputmode="decimal" placeholder="No limit" value="${entry.limit||''}">
+        </div>
+        ${limit > 0 ? `
+        <div class="budget-bar-wrap">
+          <div class="budget-bar-track"><div class="budget-bar-fill${warn?' warn':over?' over':''}" style="width:${pct}%"></div></div>
+          <span class="budget-pct${warn?' warn':over?' over':''}">${over?'Over':Math.round(pct)+'%'}</span>
+        </div>
+        <div class="budget-amounts">${sym()}<span>${spent.toFixed(0)}</span> spent of ${sym()}${limit.toFixed(0)}</div>
+        ` : `<div class="budget-no-limit">No limit set</div>`}
+      `;
+
+      // Period chip clicks
+      card.querySelectorAll('.bpchip').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const b = loadBudgets();
+          if (btn.dataset.key === 'overall') {
+            b.overall = { ...(b.overall||{}), period: btn.dataset.period };
+          } else {
+            const n = btn.dataset.key.replace('label_', '');
+            b.labels = b.labels || {};
+            b.labels[n] = { ...(b.labels[n]||{}), period: btn.dataset.period };
+          }
+          saveBudgets(b);
+          renderBudgetScreen();
+        });
+      });
+
+      // Limit input change
+      card.querySelector('.budget-limit-input').addEventListener('change', e => {
+        const val = e.target.value.trim();
+        const b = loadBudgets();
+        if (key === 'overall') {
+          b.overall = { ...(b.overall||{}), limit: val };
+        } else {
+          const n = key.replace('label_', '');
+          b.labels = b.labels || {};
+          b.labels[n] = { ...(b.labels[n]||{}), limit: val };
+        }
+        saveBudgets(b);
+        renderBudgetScreen();
+      });
+
+      return card;
+    }
+
+    function checkBudgetWarnings(labelName) {
+      const budgets = loadBudgets();
+      // Check overall
+      if (budgets.overall?.limit) {
+        const limit = parseFloat(budgets.overall.limit);
+        const spent = spentInPeriod(budgets.overall.period || 'monthly', null);
+        const pct = spent / limit * 100;
+        if (pct >= 100) toast('🚨 Over overall budget!', 'warn');
+        else if (pct >= 80) toast(`⚠ ${Math.round(pct)}% of overall budget used`, 'warn');
+      }
+      // Check label
+      const lblEntry = (budgets.labels || {})[labelName];
+      if (lblEntry?.limit) {
+        const limit = parseFloat(lblEntry.limit);
+        const spent = spentInPeriod(lblEntry.period || 'monthly', labelName);
+        const pct = spent / limit * 100;
+        if (pct >= 100) toast(`🚨 Over ${labelName} budget!`, 'warn');
+        else if (pct >= 80) toast(`⚠ ${Math.round(pct)}% of ${labelName} budget used`, 'warn');
       }
     }
 
@@ -992,16 +1198,8 @@
       btn.innerHTML='Save Expense';
       if (error) { btn.disabled=false; toast('Could not save. Try again.'); return; }
 
-      // Budget check
-      const spent=(monthTotals[picked.name]||0)+parseAmt(raw);
-      const budget=labels.find(l=>l.id===picked.id)?.budget;
-      if (budget) {
-        const pct=spent/budget*100;
-        if (pct>=100) toast(`⚠️ Over budget on ${picked.name}!`,'warn');
-        else if (pct>=80) toast(`↑ ${Math.round(pct)}% of ${picked.name} budget used`,'warn');
-      }
-
       toast('Saved!','ok');
+      checkBudgetWarnings(picked.name);
       raw=''; refreshDisplay(); picked=null;
       slideBack();
     }
@@ -1288,6 +1486,8 @@
       renderHistory(allTxData, null);
     });
 
+    document.getElementById('btn-budget').addEventListener('click', slideToBudget);
+    document.getElementById('btn-back-budget').addEventListener('click', slideBack);
     document.getElementById('btn-hist').addEventListener('click', slideToHistory);
     document.getElementById('btn-back-label').addEventListener('click', slideBack);
     document.getElementById('btn-back-hist').addEventListener('click', slideBack);
