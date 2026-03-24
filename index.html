@@ -292,9 +292,24 @@
     .hist-header { padding: 22px 22px 0; display: flex; align-items: center; gap: 10px; }
     .hist-title  { flex: 1; font-size: 19px; font-weight: 800; color: var(--text); }
 
-    .month-total-row { padding: 18px 22px 10px; display: flex; align-items: baseline; gap: 12px; }
-    .mt-label  { font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+    /* Period tabs */
+    .period-tabs { display: flex; gap: 6px; padding: 14px 22px 0; overflow-x: auto; flex-shrink: 0; }
+    .period-tabs::-webkit-scrollbar { display: none; }
+    .ptab {
+      padding: 7px 14px; border-radius: 50px; font-size: 12px; font-weight: 700; letter-spacing: .04em;
+      cursor: pointer; border: 1.5px solid var(--border2); background: transparent; color: var(--muted);
+      white-space: nowrap; flex-shrink: 0; font-family: 'Bricolage Grotesque', sans-serif;
+      transition: background .15s, color .15s, border-color .15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .ptab.active { background: var(--lime); color: #09090C; border-color: var(--lime); }
+
+    .month-total-row { padding: 12px 22px 4px; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+    .mt-label  { font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); width: 100%; }
     .mt-amount { font-family: 'DM Mono', monospace; font-size: 38px; font-weight: 400; color: var(--lime); letter-spacing: -.03em; line-height: 1; }
+    .mt-all-wrap { display: flex; align-items: baseline; gap: 6px; margin-left: auto; }
+    .mt-all-label { font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+    .mt-all-amount { font-family: 'DM Mono', monospace; font-size: 18px; font-weight: 400; color: var(--muted); letter-spacing: -.02em; }
 
     /* Filter chips row */
     .filter-row { padding: 0 22px 10px; display: flex; gap: 8px; overflow-x: auto; flex-shrink: 0; }
@@ -527,9 +542,20 @@
           </svg>
         </button>
       </div>
+      <div class="period-tabs" id="period-tabs">
+        <button class="ptab" data-period="day">Today</button>
+        <button class="ptab active" data-period="month">This month</button>
+        <button class="ptab" data-period="week">This week</button>
+        <button class="ptab" data-period="year">This year</button>
+        <button class="ptab" data-period="all">All time</button>
+      </div>
       <div class="month-total-row">
-        <span class="mt-label">This month</span>
+        <span class="mt-label" id="mt-label">This month</span>
         <span class="mt-amount" id="mt-amount">₹0.00</span>
+        <div class="mt-all-wrap" id="mt-all-wrap" style="display:none">
+          <span class="mt-all-label">Total</span>
+          <span class="mt-all-amount" id="mt-all-amount">₹0.00</span>
+        </div>
       </div>
       <div class="filter-row" id="filter-row"></div>
       <div class="tx-list" id="tx-list"></div>
@@ -612,6 +638,7 @@
     let screen       = 'auth';
     let allTxData    = [];
     let activeFilter = null;
+    let activePeriod = 'month';
     let monthTotals  = {};
     let editTx       = null;
     let editLabel    = null;
@@ -652,6 +679,16 @@
     }
 
     function monthStart() { const n=new Date(); return new Date(n.getFullYear(),n.getMonth(),1).toISOString(); }
+
+    const PERIOD_LABELS = { day:'Today', week:'This week', month:'This month', year:'This year', all:'All time' };
+    function periodStart(period) {
+      const n = new Date();
+      if (period === 'day')   return new Date(n.getFullYear(), n.getMonth(), n.getDate()).toISOString();
+      if (period === 'week')  { const d = new Date(n); d.setDate(n.getDate() - n.getDay()); d.setHours(0,0,0,0); return d.toISOString(); }
+      if (period === 'month') return new Date(n.getFullYear(), n.getMonth(), 1).toISOString();
+      if (period === 'year')  return new Date(n.getFullYear(), 0, 1).toISOString();
+      return null; // all
+    }
 
     // ════════════════════════════
     // AUTH
@@ -1009,11 +1046,30 @@
 
     function renderHistory(data, filter) {
       const list=document.getElementById('tx-list');
-      const filtered=filter?data.filter(t=>t.label_name===filter):data;
 
-      const mTotal=data.filter(t=>t.created_at>=monthStart()).reduce((s,t)=>s+parseFloat(t.amount),0);
-      const fTotal=filtered.filter(t=>t.created_at>=monthStart()).reduce((s,t)=>s+parseFloat(t.amount),0);
-      document.getElementById('mt-amount').textContent=sym()+(filter?fTotal:mTotal).toFixed(2);
+      // Period filter
+      const pStart = periodStart(activePeriod);
+      const periodData = pStart ? data.filter(t=>t.created_at>=pStart) : data;
+
+      // Label filter on top of period
+      const filtered = filter ? periodData.filter(t=>t.label_name===filter) : periodData;
+
+      // Totals
+      const periodTotal = periodData.reduce((s,t)=>s+parseFloat(t.amount),0);
+      const filteredTotal = filtered.reduce((s,t)=>s+parseFloat(t.amount),0);
+      const allTotal = data.reduce((s,t)=>s+parseFloat(t.amount),0);
+
+      document.getElementById('mt-label').textContent = PERIOD_LABELS[activePeriod];
+      document.getElementById('mt-amount').textContent = sym()+(filter?filteredTotal:periodTotal).toFixed(2);
+
+      // Show all-time total only when not already on "all"
+      const allWrap = document.getElementById('mt-all-wrap');
+      if (activePeriod !== 'all') {
+        allWrap.style.display = 'flex';
+        document.getElementById('mt-all-amount').textContent = sym()+allTotal.toFixed(2);
+      } else {
+        allWrap.style.display = 'none';
+      }
 
       if (filtered.length===0) {
         list.innerHTML=`<div class="hist-empty"><div class="hist-empty-icon">💸</div><div class="hist-empty-text">${filter?`No "${filter}" expenses yet.`:'Nothing logged yet.<br>Go spend something!'}</div></div>`;
@@ -1076,8 +1132,7 @@
         rowEl.remove();
         allTxData=allTxData.filter(t=>t.id!==id);
         renderFilterChips(allTxData);
-        const mTotal=allTxData.filter(t=>t.created_at>=monthStart()).reduce((s,t)=>s+parseFloat(t.amount),0);
-        document.getElementById('mt-amount').textContent=sym()+mTotal.toFixed(2);
+        renderHistory(allTxData, activeFilter);
         toast('Deleted','ok');
       },200);
     }
@@ -1222,6 +1277,16 @@
       btn.classList.remove('tapped'); void btn.offsetWidth; btn.classList.add('tapped');
       btn.addEventListener('animationend',()=>btn.classList.remove('tapped'),{once:true});
       setTimeout(slideToLabel,80);
+    });
+
+    document.getElementById('period-tabs').addEventListener('click', e => {
+      const btn = e.target.closest('.ptab');
+      if (!btn) return;
+      activePeriod = btn.dataset.period;
+      document.querySelectorAll('.ptab').forEach(b => b.classList.toggle('active', b === btn));
+      activeFilter = null;
+      renderFilterChips(allTxData);
+      renderHistory(allTxData, null);
     });
 
     document.getElementById('btn-hist').addEventListener('click', slideToHistory);
