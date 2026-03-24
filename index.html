@@ -480,6 +480,21 @@
     .budget-amounts { font-size: 12px; font-weight: 500; color: var(--muted); }
     .budget-amounts span { color: var(--text); font-weight: 700; }
     .budget-no-limit { font-size: 13px; color: var(--muted); font-style: italic; }
+    .budget-limit-display {
+      background: var(--bg3); border: 1.5px solid var(--border2); border-radius: 10px;
+      color: var(--text); font-family: 'DM Mono', monospace; font-size: 15px; font-weight: 500;
+      padding: 7px 12px; min-width: 100px; text-align: right; cursor: pointer;
+      transition: border-color .15s;
+    }
+    .budget-limit-display:hover { border-color: rgba(200,255,0,.3); }
+    .budget-limit-display.empty { color: var(--muted); font-style: italic; font-family: 'Bricolage Grotesque', sans-serif; font-size: 13px; }
+
+    /* Budget numpad modal display */
+    .bnp-display {
+      font-family: 'DM Mono', monospace; font-size: clamp(52px,14vw,80px); font-weight: 400;
+      color: var(--text); letter-spacing: -.03em; line-height: 1; text-align: center;
+      padding: 12px 0 24px; flex-shrink: 0;
+    }
   </style>
 </head>
 <body>
@@ -635,6 +650,32 @@
         <span class="hist-title">Budgets</span>
       </div>
       <div class="budget-list" id="budget-list"></div>
+    </div>
+
+    <!-- ══ BUDGET NUMPAD MODAL ══ -->
+    <div class="modal-overlay" id="budget-numpad-modal">
+      <div class="modal-title" id="bnp-title">Set limit</div>
+      <div class="bnp-display">
+        <span class="amount-currency" id="bnp-currency">₹</span><span id="bnp-val">0</span>
+      </div>
+      <div class="numpad-grid" id="bnp-grid">
+        <button class="key" data-bnp="7">7</button>
+        <button class="key" data-bnp="8">8</button>
+        <button class="key" data-bnp="9">9</button>
+        <button class="key" data-bnp="4">4</button>
+        <button class="key" data-bnp="5">5</button>
+        <button class="key" data-bnp="6">6</button>
+        <button class="key" data-bnp="1">1</button>
+        <button class="key" data-bnp="2">2</button>
+        <button class="key" data-bnp="3">3</button>
+        <button class="key" data-bnp=".">·</button>
+        <button class="key" data-bnp="0">0</button>
+        <button class="key" data-bnp="⌫" style="font-size:17px">⌫</button>
+      </div>
+      <div class="modal-btns" style="margin-top:10px">
+        <button class="modal-cancel" id="bnp-cancel">Cancel</button>
+        <button class="modal-save" id="bnp-confirm">Set</button>
+      </div>
     </div>
 
     <!-- ══ EDIT MODAL ══ -->
@@ -998,7 +1039,7 @@
         </div>
         <div class="budget-limit-row">
           <span class="budget-limit-label">Limit</span>
-          <input class="budget-limit-input" data-key="${key}" type="number" inputmode="decimal" placeholder="No limit" value="${entry.limit||''}">
+          <div class="budget-limit-display${!entry.limit?' empty':''}" data-key="${key}" data-val="${entry.limit||''}">${entry.limit ? sym()+parseFloat(entry.limit).toLocaleString() : 'Tap to set'}</div>
         </div>
         ${limit > 0 ? `
         <div class="budget-bar-wrap">
@@ -1025,23 +1066,61 @@
         });
       });
 
-      // Limit input change
-      card.querySelector('.budget-limit-input').addEventListener('change', e => {
-        const val = e.target.value.trim();
-        const b = loadBudgets();
-        if (key === 'overall') {
-          b.overall = { ...(b.overall||{}), limit: val };
-        } else {
-          const n = key.replace('label_', '');
-          b.labels = b.labels || {};
-          b.labels[n] = { ...(b.labels[n]||{}), limit: val };
-        }
-        saveBudgets(b);
-        renderBudgetScreen();
+      // Limit display tap → open numpad
+      card.querySelector('.budget-limit-display').addEventListener('click', e => {
+        openBudgetNumpad(e.currentTarget.dataset.key, e.currentTarget.dataset.val);
       });
 
       return card;
     }
+
+    // Budget numpad modal
+    let bnpRaw = '';
+    let bnpKey = null;
+
+    function openBudgetNumpad(key, currentVal) {
+      bnpKey = key;
+      bnpRaw = currentVal ? String(parseFloat(currentVal)) : '';
+      document.getElementById('bnp-currency').textContent = sym();
+      document.getElementById('bnp-val').textContent = bnpRaw || '0';
+      const label = key === 'overall' ? 'Overall limit' : `${key.replace('label_','')} limit`;
+      document.getElementById('bnp-title').textContent = label;
+      document.getElementById('budget-numpad-modal').classList.add('open');
+    }
+
+    function closeBudgetNumpad() {
+      document.getElementById('budget-numpad-modal').classList.remove('open');
+      bnpKey = null; bnpRaw = '';
+    }
+
+    document.getElementById('bnp-grid').addEventListener('click', e => {
+      const btn = e.target.closest('[data-bnp]');
+      if (!btn) return;
+      const k = btn.dataset.bnp;
+      if (k === '⌫') { bnpRaw = bnpRaw.slice(0,-1); }
+      else if (k === '.' && bnpRaw.includes('.')) { /* ignore */ }
+      else if (bnpRaw === '0' && k !== '.') { bnpRaw = k; }
+      else { bnpRaw += k; }
+      document.getElementById('bnp-val').textContent = bnpRaw || '0';
+    });
+
+    document.getElementById('bnp-cancel').addEventListener('click', closeBudgetNumpad);
+
+    document.getElementById('bnp-confirm').addEventListener('click', () => {
+      if (!bnpKey) return;
+      const val = bnpRaw.trim();
+      const b = loadBudgets();
+      if (bnpKey === 'overall') {
+        b.overall = { ...(b.overall||{}), limit: val };
+      } else {
+        const n = bnpKey.replace('label_', '');
+        b.labels = b.labels || {};
+        b.labels[n] = { ...(b.labels[n]||{}), limit: val };
+      }
+      saveBudgets(b);
+      closeBudgetNumpad();
+      renderBudgetScreen();
+    });
 
     function checkBudgetWarnings(labelName) {
       const budgets = loadBudgets();
