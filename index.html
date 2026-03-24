@@ -52,6 +52,36 @@
       50%     { opacity:1;  transform:translateX(-50%) scale(1.1); }
     }
 
+    /* ── FLOATING SHAPES ── */
+    #shapes-layer {
+      position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden;
+    }
+    .shape {
+      position: absolute; border-radius: 9999px;
+      border: 1.5px solid rgba(255,255,255,0.13);
+      box-shadow: 0 8px 32px rgba(255,255,255,0.06);
+      opacity: 0;
+      animation: shapeFloat 12s ease-in-out infinite, shapeIn 1.2s cubic-bezier(0.23,0.86,0.39,0.96) forwards;
+    }
+    .shape::after {
+      content: ''; position: absolute; inset: 0; border-radius: 9999px;
+      background: radial-gradient(circle at 50% 50%, rgba(255,255,255,0.14), transparent 70%);
+    }
+    @keyframes shapeIn {
+      from { opacity: 0; transform: translateY(-80px) rotate(var(--r0)); }
+      to   { opacity: 1; transform: translateY(0)     rotate(var(--rot)); }
+    }
+    @keyframes shapeFloat {
+      0%,100% { translate: 0 0; }
+      50%     { translate: 0 15px; }
+    }
+    /* each shape's animation-delay for stagger */
+    .shape:nth-child(1) { animation-delay: 0.3s, 0.3s; }
+    .shape:nth-child(2) { animation-delay: 1.5s, 0.5s; }
+    .shape:nth-child(3) { animation-delay: 3s,   0.4s; }
+    .shape:nth-child(4) { animation-delay: 2s,   0.6s; }
+    .shape:nth-child(5) { animation-delay: 4s,   0.7s; }
+
     #app {
       position: relative; height: 100dvh; max-width: 430px;
       margin: 0 auto; overflow: hidden; z-index: 1;
@@ -499,6 +529,43 @@
 </head>
 <body>
   <div class="bg-glow"></div>
+  <div id="shapes-layer">
+    <!-- shape: left side, large indigo pill -->
+    <div class="shape" style="
+      width:320px; height:80px;
+      left:-8%; top:18%;
+      --rot:12deg; --r0:-3deg;
+      background: linear-gradient(to right, rgba(99,102,241,0.13), transparent);
+    "></div>
+    <!-- shape: right side, rose pill -->
+    <div class="shape" style="
+      width:260px; height:65px;
+      right:-4%; top:68%;
+      --rot:-15deg; --r0:-30deg;
+      background: linear-gradient(to right, rgba(244,63,94,0.13), transparent);
+    "></div>
+    <!-- shape: bottom left, violet -->
+    <div class="shape" style="
+      width:160px; height:45px;
+      left:6%; bottom:12%;
+      --rot:-8deg; --r0:-23deg;
+      background: linear-gradient(to right, rgba(139,92,246,0.13), transparent);
+    "></div>
+    <!-- shape: top right, lime accent -->
+    <div class="shape" style="
+      width:115px; height:34px;
+      right:18%; top:12%;
+      --rot:20deg; --r0:5deg;
+      background: linear-gradient(to right, rgba(200,255,0,0.1), transparent);
+    "></div>
+    <!-- shape: top center, cyan -->
+    <div class="shape" style="
+      width:85px; height:26px;
+      left:24%; top:7%;
+      --rot:-25deg; --r0:-40deg;
+      background: linear-gradient(to right, rgba(6,182,212,0.13), transparent);
+    "></div>
+  </div>
   <div id="toast"></div>
 
   <div id="app">
@@ -858,6 +925,7 @@
       document.getElementById('s-auth').classList.add('off-left');
       document.getElementById('s-numpad').classList.remove('off-right', 'off-left');
       screen = 'numpad';
+      animateShapes();
 
       // Load data
       Promise.all([loadLabels(), loadMonthTotals()]).then(() => refreshDisplay());
@@ -932,11 +1000,20 @@
       screen='label';
     }
 
+    function animateShapes() {
+      document.querySelectorAll('.shape').forEach(s => {
+        s.style.animation = 'none';
+        s.offsetHeight; // reflow
+        s.style.animation = '';
+      });
+    }
+
     function slideToHistory() {
       closeProfilePopover();
       document.getElementById('s-numpad').classList.add('off-left');
       document.getElementById('s-history').classList.remove('off-right','off-left');
       screen='history';
+      animateShapes();
       loadHistory();
     }
 
@@ -944,10 +1021,12 @@
       document.getElementById('s-history').classList.add('off-left');
       document.getElementById('s-chart').classList.remove('off-right','off-left');
       screen='chart';
+      animateShapes();
       renderChart();
     }
 
     function slideBack() {
+      animateShapes();
       if (screen==='label') {
         document.getElementById('s-label').classList.add('off-right');
         document.getElementById('s-numpad').classList.remove('off-left','off-right');
@@ -971,6 +1050,7 @@
       document.getElementById('s-numpad').classList.add('off-left');
       document.getElementById('s-budget').classList.remove('off-right','off-left');
       screen='budget';
+      animateShapes();
       renderBudgetScreen();
     }
 
