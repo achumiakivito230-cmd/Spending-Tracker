@@ -1191,13 +1191,12 @@
     function renderChart() {
       const body=document.getElementById('chart-body');
       body.innerHTML='';
-      const now=new Date();
-      document.getElementById('chart-period').textContent=
-        now.toLocaleDateString([],{month:'long',year:'numeric'});
+      document.getElementById('chart-period').textContent=PERIOD_LABELS[activePeriod]||'This month';
 
-      const mData=allTxData.filter(t=>t.created_at>=monthStart());
+      const pStart=periodStart(activePeriod);
+      const mData=pStart?allTxData.filter(t=>t.created_at>=pStart):allTxData;
       if (mData.length===0) {
-        body.innerHTML=`<div class="chart-empty"><div style="font-size:44px;opacity:.28">📊</div><div style="font-size:14.5px;font-weight:500;color:var(--muted)">No expenses this month yet.</div></div>`;
+        body.innerHTML=`<div class="chart-empty"><div style="font-size:44px;opacity:.28">📊</div><div style="font-size:14.5px;font-weight:500;color:var(--muted)">No expenses for this period.</div></div>`;
         return;
       }
 
