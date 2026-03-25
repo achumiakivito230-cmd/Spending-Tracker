@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: milestone
 status: unknown
-last_updated: "2026-03-25T21:57:56.095Z"
+last_updated: "2026-03-25T22:01:37.720Z"
 progress:
   total_phases: 5
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 5
-  completed_plans: 4
+  completed_plans: 5
 ---
 
 # Project State: Spend Tracker Stability & Maintainability
@@ -96,6 +96,9 @@ See: `.planning/config.json`
 - [Phase 01-data-synchronization]: INSERT duplicate guard (allTxData.some) prevents double-render from optimistic add + Realtime event delivery
 - [Phase 02-error-handling-and-logging]: loadLabels toast only when no cache exists — background refresh failure logs silently to avoid interrupting users with cached data
 - [Phase 02-error-handling-and-logging]: Promise.all .catch() pattern established for all parallel data-load chains in onSignedIn and unlockToNumpad
+- [Phase 02-error-handling-and-logging]: btn-ml-add handler (Manage Labels add label) patched as Rule 2 auto-fix — second addLabel call site was a direct mutation path without logError coverage
+- [Phase 02-error-handling-and-logging]: loadHistory error path shows both inline list message and a toast — history screen is user-active when this runs
+- [Phase 02-error-handling-and-logging]: deleteExpense visual restoration (rowEl.style.opacity=1) preserved before errorToast — row must reappear before user sees the error message
 
 ## Next Steps
 
@@ -110,5 +113,5 @@ See: `.planning/config.json`
 - Focus: Stability, reliability, maintainability (no new features)
 - Architecture: Will modularize from single file
 - User preference: YOLO mode (trust Claude's decisions)
-- **Last session:** 2026-03-25T21:57:51.613Z
+- **Last session:** 2026-03-25T22:01:37.718Z
 - **Last session:** 2026-03-26 — Executed 01-03-PLAN.md (conflict detection in saveEdit() + setupConnectivityWatch() — SYNC-02 and SYNC-03 complete)
