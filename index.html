@@ -1583,6 +1583,44 @@
       clearTimeout(el._t); el._t=setTimeout(()=>el.className='',2400);
     }
 
+    // ════════════════════════════
+    // ERROR HELPERS
+    // ════════════════════════════
+    function logError(context, error) {
+      console.error('[SpendTracker]', context, {
+        message: error?.message,
+        code: error?.code,
+        hint: error?.hint,
+        details: error?.details,
+        status: error?.status,
+        raw: error,
+        timestamp: new Date().toISOString(),
+        user: currentUser?.id || 'unauthenticated',
+        screen
+      });
+    }
+
+    function errorToast(error, fallback) {
+      const msg = error?.message || '';
+      if (!navigator.onLine || msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
+        toast('Network error — check your connection and try again');
+        return;
+      }
+      if (error?.code === '42501' || msg.includes('permission denied') || msg.includes('violates row-level security')) {
+        toast('Permission denied — you may not have access to this data');
+        return;
+      }
+      if (error?.code === '23505' || msg.includes('duplicate') || msg.includes('unique')) {
+        toast('Already exists — try a different name');
+        return;
+      }
+      if (error?.status === 401 || msg.includes('JWT') || msg.includes('session')) {
+        toast('Session expired — please sign in again');
+        return;
+      }
+      toast(fallback || 'Something went wrong — try again');
+    }
+
     function monthStart() { const n=new Date(); return new Date(n.getFullYear(),n.getMonth(),1).toISOString(); }
 
     const PERIOD_LABELS = { day:'Today', week:'This week', month:'This month', year:'This year', all:'All time' };
