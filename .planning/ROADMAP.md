@@ -13,6 +13,13 @@
 
 **Requirements:** SYNC-01, SYNC-02, SYNC-03, SYNC-04
 
+**Plans:** 3 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Database migration: add updated_at columns, enable Realtime publication, create test checklist
+- [ ] 01-02-PLAN.md — Realtime subscriptions: handleExpenseChange, handleLabelChange, setupRealtimeSync, visibility watch
+- [ ] 01-03-PLAN.md — Offline sync and conflict detection: saveEdit guard, setupConnectivityWatch
+
 **Success Criteria:**
 1. User makes expense change on Device A; appears on Device B within 1 second
 2. Concurrent edits from two tabs resolve without data loss
@@ -126,4 +133,4 @@ All v1 requirements mapped to exactly one phase:
 ---
 
 *Roadmap created: 2026-03-26*
-*Next: /gsd:discuss-phase 1 or /gsd:plan-phase 1*
+*Phase 1 planned: 2026-03-26*
