@@ -2465,8 +2465,13 @@
       const cached=localStorage.getItem(labelCacheKey());
       if (cached) try { labels=JSON.parse(cached); } catch {}
       if (!db) return;
-      const {data}=await db.from('labels').select('*').order('created_at',{ascending:false});
-      if (data) { labels=data; localStorage.setItem(labelCacheKey(),JSON.stringify(labels)); renderChips(); }
+      const { data, error } = await db.from('labels').select('*').order('created_at', { ascending: false });
+      if (error) {
+        logError('loadLabels', error);
+        if (!labels.length) toast('Could not load labels — check your connection');
+        return;
+      }
+      if (data) { labels = data; localStorage.setItem(labelCacheKey(), JSON.stringify(labels)); renderChips(); }
     }
 
     // ════════════════════════════
@@ -2569,7 +2574,8 @@
 
     async function loadMonthTotals() {
       if (!db) return;
-      const {data}=await db.from('expenses').select('label_name,amount').gte('created_at',monthStart());
+      const { data, error } = await db.from('expenses').select('label_name,amount').gte('created_at', monthStart());
+      if (error) { logError('loadMonthTotals', error); return; }
       if (!data) return;
       monthTotals={};
       data.forEach(r=>{ monthTotals[r.label_name]=(monthTotals[r.label_name]||0)+parseFloat(r.amount); });
