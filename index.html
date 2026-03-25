@@ -1360,7 +1360,12 @@
       screen = 'numpad';
       animateShapes();
       updateTabBar();
-      Promise.all([loadLabels(), loadMonthTotals()]).then(() => refreshDisplay());
+      Promise.all([loadLabels(), loadMonthTotals()])
+        .then(() => refreshDisplay())
+        .catch(err => {
+          logError('unlockToNumpad/Promise.all', err);
+          toast('Could not load your data — reload the page to try again');
+        });
       document.getElementById('amount-currency').textContent = sym();
       document.getElementById('lp-currency').textContent = sym();
       applyAccent(localStorage.getItem(accentKey()) || '#C8FF00');
@@ -1705,7 +1710,12 @@
       applyAccent(localStorage.getItem(accentKey()) || '#C8FF00');
 
       // Load data
-      Promise.all([loadLabels(), loadMonthTotals()]).then(() => refreshDisplay());
+      Promise.all([loadLabels(), loadMonthTotals()])
+        .then(() => refreshDisplay())
+        .catch(err => {
+          logError('onSignedIn/Promise.all', err);
+          toast('Could not load your data — reload the page to try again');
+        });
 
       // Apply currency
       document.getElementById('amount-currency').textContent = sym();
