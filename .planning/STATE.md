@@ -1,6 +1,6 @@
 # Project State: Spend Tracker Stability & Maintainability
 
-**Last Updated:** 2026-03-26 (after 01-01 execution)
+**Last Updated:** 2026-03-26 (after 01-03 execution)
 
 ## Project Reference
 
@@ -8,7 +8,7 @@ See: `.planning/PROJECT.md` (Spend Tracker: Stability & Maintainability)
 
 **Core Value:** Users have reliable, consistent expense data they can trust across devices. The codebase is maintainable for future work.
 
-**Current Focus:** Phase 1 — Data Synchronization (Plan 01 complete, Plan 02 next)
+**Current Focus:** Phase 1 — Data Synchronization (Plans 01 and 03 complete, Plan 02 pending)
 
 ## Accumulated Context
 
@@ -16,7 +16,7 @@ See: `.planning/PROJECT.md` (Spend Tracker: Stability & Maintainability)
 
 | Phase | Goal | Status |
 |-------|------|--------|
-| 1 | Data Synchronization | In Progress (Plan 01/03 complete) |
+| 1 | Data Synchronization | In Progress (Plans 01 and 03/03 complete, Plan 02 pending) |
 | 2 | Error Handling & Logging | Pending |
 | 3 | State Management | Pending |
 | 4 | Security Fixes | Pending |
@@ -77,12 +77,13 @@ See: `.planning/config.json`
 
 - **Conflict resolution strategy (01-01):** last-write-wins — later save always proceeds; stale-tab user sees a warning toast before save completes. No blocking dialogs.
 - **Task 1 gate resolution (01-01):** Supabase migration (updated_at columns, realtime publication, RLS policies) confirmed applied by user before plan execution.
+- **Conflict detection approach (01-03):** _capturedAt pattern — capture server timestamp at modal open, re-fetch before save, compare timestamps. Conflict toast warns but never blocks save.
+- **Connectivity watch placement (01-03):** setupConnectivityWatch() function near LABELS + BUDGET section; registered once in onSignedIn(); no duplicate listener risk.
 
 ## Next Steps
 
-1. **Plan 01-02:** Real-time subscription code (`setupRealtimeSync()`) — depends on tables being in supabase_realtime publication (complete)
-2. **Plan 01-03:** Conflict detection in `saveEdit()` — depends on expenses.updated_at column (complete)
-3. **Parallel Phases:** Phase 2 (Error Handling) can begin in parallel with Phase 1 Plan 02/03
+1. **Plan 01-02:** Real-time subscription code (`setupRealtimeSync()`, `setupVisibilityWatch()`) — depends on tables being in supabase_realtime publication (complete)
+2. **Parallel Phases:** Phase 2 (Error Handling) can begin in parallel with Phase 1 Plan 02
 
 ---
 
@@ -93,3 +94,4 @@ See: `.planning/config.json`
 - Architecture: Will modularize from single file
 - User preference: YOLO mode (trust Claude's decisions)
 - **Last session:** 2026-03-26 — Executed 01-01-PLAN.md (database migration gate resolved + TEST-CHECKLIST.md created)
+- **Last session:** 2026-03-26 — Executed 01-03-PLAN.md (conflict detection in saveEdit() + setupConnectivityWatch() — SYNC-02 and SYNC-03 complete)
