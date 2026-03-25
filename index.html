@@ -1680,6 +1680,9 @@
         const el = document.getElementById('btn-admin-panel');
         if (el) el.style.display = 'block';
       }
+
+      // Start connectivity watch for this session
+      setupConnectivityWatch();
     }
 
     async function doSignOut() {
@@ -2394,6 +2397,19 @@
         if (pct >= 100) { toast(`Over ${labelName} budget!`, 'warn'); break; }
         else if (pct >= 80) { toast(`${Math.round(pct)}% of ${labelName} ${p} budget used`, 'warn'); break; }
       }
+    }
+
+    // ════════════════════════════
+    // CONNECTIVITY WATCH
+    // ════════════════════════════
+    function setupConnectivityWatch() {
+      window.addEventListener('online', () => {
+        toast('Back online \u2014 syncing\u2026');
+        loadHistory().then(() => {
+          if (screen === 'history') renderHistory(allTxData, activeFilter);
+          if (screen === 'chart')   renderChart();
+        });
+      });
     }
 
     // ════════════════════════════
