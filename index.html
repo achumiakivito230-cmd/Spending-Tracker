@@ -2704,7 +2704,7 @@
         const newName = input.value.trim();
         if (!newName || newName === lbl.name) { row.remove(); return; }
         const { error } = await db.from('labels').update({ name: newName }).eq('id', lbl.id);
-        if (error) { toast('Could not rename'); return; }
+        if (error) { logError('renameLabelPrompt', error); errorToast(error, 'Could not rename label'); return; }
         lbl.name = newName;
         localStorage.setItem(labelCacheKey(), JSON.stringify(labels));
         row.remove();
@@ -2723,7 +2723,7 @@
     async function deleteLabel(lbl) {
       if (!confirm(`Delete "${lbl.name}"? This won't delete existing expenses.`)) return;
       const { error } = await db.from('labels').delete().eq('id', lbl.id);
-      if (error) { toast('Could not delete label'); return; }
+      if (error) { logError('deleteLabel', error); errorToast(error, 'Could not delete label'); return; }
       labels = labels.filter(l => l.id !== lbl.id);
       localStorage.setItem(labelCacheKey(), JSON.stringify(labels));
       if (picked?.id === lbl.id) { picked = null; document.getElementById('btn-save').disabled = true; }
@@ -2767,7 +2767,7 @@
             if (newName && newName !== lbl.name) {
               const { error } = await db.from('labels').update({ name: newName }).eq('id', lbl.id);
               if (!error) { lbl.name = newName; localStorage.setItem(labelCacheKey(), JSON.stringify(labels)); toast('Renamed', 'ok'); }
-              else toast('Could not rename');
+              else { logError('renderManageLabels/rename', error); errorToast(error, 'Could not rename label'); }
             }
             row.replaceChild(name, input); name.textContent = lbl.name; dot.style.background = chipColor(lbl.name).bg;
           };
@@ -2779,7 +2779,7 @@
         delBtn.addEventListener('click', async () => {
           if (!confirm(`Delete "${lbl.name}"?`)) return;
           const { error } = await db.from('labels').delete().eq('id', lbl.id);
-          if (error) { toast('Could not delete'); return; }
+          if (error) { logError('renderManageLabels/delete', error); errorToast(error, 'Could not delete label'); return; }
           labels = labels.filter(l => l.id !== lbl.id);
           localStorage.setItem(labelCacheKey(), JSON.stringify(labels));
           row.remove();
@@ -2807,7 +2807,7 @@
       const payload = {name};
       if (currentUser) payload.user_id = currentUser.id;
       const {data,error}=await db.from('labels').insert(payload).select().single();
-      if (error||!data) { toast('Could not add label'); return; }
+      if (error || !data) { logError('addLabel', error); errorToast(error, 'Could not add label'); return; }
       labels.unshift(data);
       localStorage.setItem(labelCacheKey(),JSON.stringify(labels));
       renderChips();
