@@ -1684,9 +1684,14 @@
 
       // Start connectivity watch for this session
       setupConnectivityWatch();
+
+      // Start real-time sync for this session
+      setupRealtimeSync(currentUser.id);
+      setupVisibilityWatch();
     }
 
     async function doSignOut() {
+      teardownRealtimeSync();
       closeProfilePopover();
       if (db) await db.auth.signOut();
       location.reload();
