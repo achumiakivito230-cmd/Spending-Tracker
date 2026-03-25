@@ -35,6 +35,12 @@ Plans:
 
 **Requirements:** ERROR-01, ERROR-02, ERROR-03, ERROR-04
 
+**Plans:** 2 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — Add logError/errorToast helpers; patch loadLabels, loadMonthTotals, and both Promise.all call sites
+- [ ] 02-02-PLAN.md — Patch all mutation call sites (addLabel, rename, delete, saveExpense, saveEdit, deleteExpense, loadHistory)
+
 **Success Criteria:**
 1. All database operation errors logged with full context to console/monitoring
 2. User sees specific error message (e.g., "Network error — try again" vs generic "Could not add label")
@@ -133,3 +139,4 @@ All v1 requirements mapped to exactly one phase:
 
 *Roadmap created: 2026-03-26*
 *Phase 1 planned: 2026-03-26*
+*Phase 2 planned: 2026-03-26*
