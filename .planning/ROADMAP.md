@@ -16,7 +16,7 @@
 **Plans:** 3 plans
 
 Plans:
-- [ ] 01-01-PLAN.md — Database migration: add updated_at columns, enable Realtime publication, create test checklist
+- [x] 01-01-PLAN.md — Database migration: add updated_at columns, enable Realtime publication, create test checklist *(complete 2026-03-26)*
 - [ ] 01-02-PLAN.md — Realtime subscriptions: handleExpenseChange, handleLabelChange, setupRealtimeSync, visibility watch
 - [ ] 01-03-PLAN.md — Offline sync and conflict detection: saveEdit guard, setupConnectivityWatch
 
