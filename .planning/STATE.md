@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: milestone
 status: unknown
-last_updated: "2026-03-25T21:43:29.411Z"
+last_updated: "2026-03-25T21:57:56.095Z"
 progress:
   total_phases: 5
   completed_phases: 1
-  total_plans: 3
-  completed_plans: 3
+  total_plans: 5
+  completed_plans: 4
 ---
 
 # Project State: Spend Tracker Stability & Maintainability
@@ -94,6 +94,8 @@ See: `.planning/config.json`
 - **Connectivity watch placement (01-03):** setupConnectivityWatch() function near LABELS + BUDGET section; registered once in onSignedIn(); no duplicate listener risk.
 - [Phase 01-data-synchronization]: Single Supabase Realtime channel with two postgres_changes subscriptions (expenses + labels) per user session — teardown on sign-out prevents orphaned channels
 - [Phase 01-data-synchronization]: INSERT duplicate guard (allTxData.some) prevents double-render from optimistic add + Realtime event delivery
+- [Phase 02-error-handling-and-logging]: loadLabels toast only when no cache exists — background refresh failure logs silently to avoid interrupting users with cached data
+- [Phase 02-error-handling-and-logging]: Promise.all .catch() pattern established for all parallel data-load chains in onSignedIn and unlockToNumpad
 
 ## Next Steps
 
@@ -108,5 +110,5 @@ See: `.planning/config.json`
 - Focus: Stability, reliability, maintainability (no new features)
 - Architecture: Will modularize from single file
 - User preference: YOLO mode (trust Claude's decisions)
-- **Last session:** 2026-03-25T21:39:05.606Z
+- **Last session:** 2026-03-25T21:57:51.613Z
 - **Last session:** 2026-03-26 — Executed 01-03-PLAN.md (conflict detection in saveEdit() + setupConnectivityWatch() — SYNC-02 and SYNC-03 complete)
