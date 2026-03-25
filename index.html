@@ -2830,7 +2830,7 @@
       if (currentUser) payload.user_id = currentUser.id;
       const {error}=await db.from('expenses').insert(payload);
       btn.innerHTML='Save Expense';
-      if (error) { btn.disabled=false; toast('Could not save. Try again.'); return; }
+      if (error) { logError('saveExpense', error); btn.disabled = false; errorToast(error, 'Could not save — try again'); return; }
 
       toast('Saved!','ok');
       checkBudgetWarnings(picked.name);
@@ -2849,7 +2849,12 @@
 
       if (!db) { list.innerHTML=`<div style="color:var(--muted);font-size:14px;padding:28px 0;text-align:center">No connection.</div>`; return; }
       const {data,error}=await db.from('expenses').select('*').order('created_at',{ascending:false}).limit(200);
-      if (error||!data) { list.innerHTML=`<div style="color:var(--muted);font-size:14px;padding:28px 0;text-align:center">Could not load.</div>`; return; }
+      if (error || !data) {
+        logError('loadHistory', error);
+        list.innerHTML = `<div style="color:var(--muted);font-size:14px;padding:28px 0;text-align:center">Could not load transactions — tap to retry</div>`;
+        toast('Could not load transactions — check your connection');
+        return;
+      }
 
       allTxData=data;
       renderFilterChips(data);
@@ -2961,7 +2966,7 @@
       rowEl.style.opacity='0'; rowEl.style.transform='translateX(40px)';
       setTimeout(async()=>{
         const {error}=await db.from('expenses').delete().eq('id',id);
-        if (error) { rowEl.style.opacity='1'; rowEl.style.transform=''; toast('Could not delete'); return; }
+        if (error) { logError('deleteExpense', error); rowEl.style.opacity = '1'; rowEl.style.transform = ''; errorToast(error, 'Could not delete — try again'); return; }
         rowEl.remove();
         allTxData=allTxData.filter(t=>t.id!==id);
         renderFilterChips(allTxData);
@@ -3021,7 +3026,7 @@
       }
       const {error}=await db.from('expenses').update({amount:amt, label_id:editLabel.id, label_name:editLabel.name}).eq('id',editTx.id);
       btn.innerHTML='Save';
-      if (error) { toast('Could not save'); return; }
+      if (error) { logError('saveEdit', error); errorToast(error, 'Could not save changes — try again'); return; }
       const idx=allTxData.findIndex(t=>t.id===editTx.id);
       if (idx>=0) { allTxData[idx]={...allTxData[idx],amount:amt,label_id:editLabel.id,label_name:editLabel.name}; }
       closeEditModal();
@@ -3327,7 +3332,7 @@
       if (!name) return;
       const payload = { user_id: currentUser.id, name, color: null, budget: null };
       const { data, error } = await db.from('labels').insert(payload).select().single();
-      if (error) { toast('Could not add label'); return; }
+      if (error) { logError('addLabel/manageLabels', error); errorToast(error, 'Could not add label'); return; }
       labels.unshift(data);
       localStorage.setItem(labelCacheKey(), JSON.stringify(labels));
       input.value = '';
