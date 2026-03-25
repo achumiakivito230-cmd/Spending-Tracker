@@ -1,6 +1,19 @@
+---
+gsd_state_version: 1.0
+milestone: v1.1
+milestone_name: milestone
+status: unknown
+last_updated: "2026-03-25T21:39:10.229Z"
+progress:
+  total_phases: 5
+  completed_phases: 1
+  total_plans: 3
+  completed_plans: 3
+---
+
 # Project State: Spend Tracker Stability & Maintainability
 
-**Last Updated:** 2026-03-26 (after 01-03 execution)
+**Last Updated:** 2026-03-26 (after 01-02 execution — Phase 1 complete)
 
 ## Project Reference
 
@@ -8,7 +21,7 @@ See: `.planning/PROJECT.md` (Spend Tracker: Stability & Maintainability)
 
 **Core Value:** Users have reliable, consistent expense data they can trust across devices. The codebase is maintainable for future work.
 
-**Current Focus:** Phase 1 — Data Synchronization (Plans 01 and 03 complete, Plan 02 pending)
+**Current Focus:** Phase 2 — Error Handling & Logging (Phase 1 complete)
 
 ## Accumulated Context
 
@@ -16,13 +29,13 @@ See: `.planning/PROJECT.md` (Spend Tracker: Stability & Maintainability)
 
 | Phase | Goal | Status |
 |-------|------|--------|
-| 1 | Data Synchronization | In Progress (Plans 01 and 03/03 complete, Plan 02 pending) |
+| 1 | Data Synchronization | Complete (all 3 plans done: SYNC-01, SYNC-02, SYNC-03, SYNC-04) |
 | 2 | Error Handling & Logging | Pending |
 | 3 | State Management | Pending |
 | 4 | Security Fixes | Pending |
 | 5 | Code Quality | Pending |
 
-**Overall:** 0/5 phases complete (Phase 1 in progress)
+**Overall:** 1/5 phases complete (Phase 2 next)
 
 ### Pending Todos
 
@@ -79,11 +92,13 @@ See: `.planning/config.json`
 - **Task 1 gate resolution (01-01):** Supabase migration (updated_at columns, realtime publication, RLS policies) confirmed applied by user before plan execution.
 - **Conflict detection approach (01-03):** _capturedAt pattern — capture server timestamp at modal open, re-fetch before save, compare timestamps. Conflict toast warns but never blocks save.
 - **Connectivity watch placement (01-03):** setupConnectivityWatch() function near LABELS + BUDGET section; registered once in onSignedIn(); no duplicate listener risk.
+- [Phase 01-data-synchronization]: Single Supabase Realtime channel with two postgres_changes subscriptions (expenses + labels) per user session — teardown on sign-out prevents orphaned channels
+- [Phase 01-data-synchronization]: INSERT duplicate guard (allTxData.some) prevents double-render from optimistic add + Realtime event delivery
 
 ## Next Steps
 
-1. **Plan 01-02:** Real-time subscription code (`setupRealtimeSync()`, `setupVisibilityWatch()`) — depends on tables being in supabase_realtime publication (complete)
-2. **Parallel Phases:** Phase 2 (Error Handling) can begin in parallel with Phase 1 Plan 02
+1. **Phase 2:** Error Handling & Logging — Phase 1 is complete, Phase 2 can begin
+2. **Verify Phase 1:** Run TEST-CHECKLIST.md manual verification (two-tab sync, conflict toast, offline re-sync, visibility re-fetch)
 
 ---
 
@@ -93,5 +108,5 @@ See: `.planning/config.json`
 - Focus: Stability, reliability, maintainability (no new features)
 - Architecture: Will modularize from single file
 - User preference: YOLO mode (trust Claude's decisions)
-- **Last session:** 2026-03-26 — Executed 01-01-PLAN.md (database migration gate resolved + TEST-CHECKLIST.md created)
+- **Last session:** 2026-03-25T21:39:05.606Z
 - **Last session:** 2026-03-26 — Executed 01-03-PLAN.md (conflict detection in saveEdit() + setupConnectivityWatch() — SYNC-02 and SYNC-03 complete)
