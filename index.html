@@ -1262,6 +1262,7 @@
     let pinSetupRaw  = '';       // PIN digits being set up in the sheet
     let pinSetupStep = 'enter';  // 'enter' | 'confirm'
     let pinSetupFirst = '';      // first PIN entry (for confirm step)
+    let realtimeChannel = null;  // Supabase Realtime channel — one per session
 
     // ════════════════════════════
     // ACCENT COLOR
@@ -2423,6 +2424,104 @@
       if (!db) return;
       const {data}=await db.from('labels').select('*').order('created_at',{ascending:false});
       if (data) { labels=data; localStorage.setItem(labelCacheKey(),JSON.stringify(labels)); renderChips(); }
+    }
+
+    // ════════════════════════════
+    // REALTIME SYNC
+    // ════════════════════════════
+
+    function setupRealtimeSync(userId) {
+      // Clean up any existing channel before creating a new one (re-auth guard)
+      if (realtimeChannel) {
+        db.removeChannel(realtimeChannel);
+        realtimeChannel = null;
+      }
+
+      realtimeChannel = db
+        .channel('user-data-sync')
+        .on('postgres_changes',
+          { event: '*', schema: 'public', table: 'expenses', filter: `user_id=eq.${userId}` },
+          handleExpenseChange
+        )
+        .on('postgres_changes',
+          { event: '*', schema: 'public', table: 'labels', filter: `user_id=eq.${userId}` },
+          handleLabelChange
+        )
+        .subscribe((status) => {
+          // On channel error or timeout, re-fetch to cover missed events
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            loadHistory();
+          }
+        });
+    }
+
+    function teardownRealtimeSync() {
+      if (realtimeChannel) {
+        db.removeChannel(realtimeChannel);
+        realtimeChannel = null;
+      }
+    }
+
+    function handleExpenseChange(payload) {
+      const { eventType, new: newRow, old: oldRow } = payload;
+
+      if (eventType === 'INSERT') {
+        // Guard against duplicate: app may have already added row optimistically
+        if (allTxData.some(tx => tx.id === newRow.id)) return;
+        allTxData.unshift(newRow);
+
+      } else if (eventType === 'UPDATE') {
+        const idx = allTxData.findIndex(tx => tx.id === newRow.id);
+        if (idx !== -1) allTxData[idx] = newRow;
+
+      } else if (eventType === 'DELETE') {
+        // DELETE payload.old contains only primary key — use id only
+        allTxData = allTxData.filter(tx => tx.id !== oldRow.id);
+      }
+
+      // Re-render only the visible screen
+      if (screen === 'history') {
+        renderFilterChips(allTxData);
+        renderHistory(allTxData, activeFilter);
+      }
+      if (screen === 'chart') renderChart();
+    }
+
+    function handleLabelChange(payload) {
+      const { eventType, new: newRow, old: oldRow } = payload;
+
+      if (eventType === 'INSERT') {
+        if (labels.some(l => l.id === newRow.id)) return;
+        labels.unshift(newRow);
+
+      } else if (eventType === 'UPDATE') {
+        const idx = labels.findIndex(l => l.id === newRow.id);
+        if (idx !== -1) labels[idx] = newRow;
+
+      } else if (eventType === 'DELETE') {
+        labels = labels.filter(l => l.id !== oldRow.id);
+      }
+
+      // Update localStorage cache
+      if (currentUser) {
+        localStorage.setItem(`spend_labels_${currentUser.id}`, JSON.stringify(labels));
+      }
+
+      // Re-render label chips if on label selection screen
+      if (screen === 'label') renderChips();
+    }
+
+    function setupVisibilityWatch() {
+      // Re-fetch after tab returns from long background sleep (>5 min)
+      let hiddenAt = null;
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') {
+          hiddenAt = Date.now();
+        } else if (hiddenAt && Date.now() - hiddenAt > 5 * 60 * 1000) {
+          loadHistory();
+          hiddenAt = null;
+        }
+      });
     }
 
     async function loadMonthTotals() {
