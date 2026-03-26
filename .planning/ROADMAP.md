@@ -17,8 +17,8 @@
 
 Plans:
 - [x] 01-01-PLAN.md — Database migration: add updated_at columns, enable Realtime publication, create test checklist *(complete 2026-03-26)*
-- [ ] 01-02-PLAN.md — Realtime subscriptions: handleExpenseChange, handleLabelChange, setupRealtimeSync, visibility watch
-- [ ] 01-03-PLAN.md — Offline sync and conflict detection: saveEdit guard, setupConnectivityWatch
+- [x] 01-02-PLAN.md — Realtime subscriptions: handleExpenseChange, handleLabelChange, setupRealtimeSync, visibility watch *(complete 2026-03-26)*
+- [x] 01-03-PLAN.md — Offline sync and conflict detection: saveEdit guard, setupConnectivityWatch *(complete 2026-03-26)*
 
 **Success Criteria:**
 1. User makes expense change on Device A; appears on Device B within 1 second
@@ -35,11 +35,11 @@ Plans:
 
 **Requirements:** ERROR-01, ERROR-02, ERROR-03, ERROR-04
 
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 
 Plans:
-- [ ] 02-01-PLAN.md — Add logError/errorToast helpers; patch loadLabels, loadMonthTotals, and both Promise.all call sites
-- [ ] 02-02-PLAN.md — Patch all mutation call sites (addLabel, rename, delete, saveExpense, saveEdit, deleteExpense, loadHistory)
+- [x] 02-01-PLAN.md — Add logError/errorToast helpers; patch loadLabels, loadMonthTotals, and both Promise.all call sites *(complete 2026-03-26)*
+- [x] 02-02-PLAN.md — Patch all mutation call sites (addLabel, rename, delete, saveExpense, saveEdit, deleteExpense, loadHistory) *(complete 2026-03-26)*
 
 **Success Criteria:**
 1. All database operation errors logged with full context to console/monitoring
@@ -60,14 +60,13 @@ Plans:
 
 Plans:
 - [x] 03-01-PLAN.md — Promise-slot dedup for loadLabels(), Array.isArray guard for allTxData, local accumulator for loadMonthTotals() *(complete 2026-03-26)*
+- [x] 03-02-PLAN.md — Nav guard, currentUser null-safety *(complete 2026-03-26)*
 
 **Success Criteria:**
 1. All assignments to `allTxData`, `labels`, `currentUser` validated before assignment
 2. Simultaneous `loadLabels()` calls don't create cache inconsistency
 3. Functions check `currentUser` before using it (no null reference errors)
 4. Rapid screen navigation doesn't cause visual glitches or state divergence
-
-**Progress:** STATE-01 complete, STATE-02 complete; STATE-03/STATE-04 pending
 
 **Priority:** High — prevents hard-to-trace bugs
 
@@ -78,7 +77,7 @@ Plans:
 
 **Requirements:** SEC-01, SEC-02, SEC-03, SEC-04
 
-**Plans:** 3/3 plans complete
+**Plans:** 2/2 plans complete
 
 Plans:
 - [x] 04-01-PLAN.md — XSS fix: replace innerHTML with textContent for label rendering; move admin email to env variable placeholder *(complete 2026-03-26)*
@@ -99,6 +98,13 @@ Plans:
 
 **Requirements:** QUAL-01, QUAL-02, QUAL-03, QUAL-04
 
+**Plans:** 3 plans
+
+Plans:
+- [ ] 05-01-PLAN.md — DataModule factory: encapsulate data layer (loadLabels, loadHistory, loadMonthTotals) *(QUAL-01)*
+- [ ] 05-02-PLAN.md — Menu listener cleanup & label validation: delegated click-outside handler, edit modal validation *(QUAL-02, QUAL-03)*
+- [ ] 05-03-PLAN.md — Chart memoization: cache rendered SVG, invalidate on data/filter change *(QUAL-04)*
+
 **Success Criteria:**
 1. Core functions (auth, transactions, UI) extracted into separate modules
 2. Budget/label menu listeners cleaned up properly (no listener stacking)
@@ -112,15 +118,13 @@ Plans:
 ## Execution Plan
 
 **Wave 1 (Parallel):**
-- Phase 1: Data Synchronization
-- Phase 2: Error Handling & Logging
+- Phase 1: Data Synchronization (complete)
+- Phase 2: Error Handling & Logging (complete)
+- Phase 3: State Management (complete)
+- Phase 4: Security Fixes (complete)
 
-**Wave 2 (Sequential after Wave 1):**
-- Phase 3: State Management
-- Phase 4: Security Fixes (parallel with Phase 3)
-
-**Wave 3:**
-- Phase 5: Code Quality & Maintainability
+**Wave 2:**
+- Phase 5: Code Quality & Maintainability (3 plans, ready for execution)
 
 **Total Estimated Effort:** 4-6 weeks full-time (phases can overlap for experienced developers)
 
@@ -132,10 +136,11 @@ All v1 requirements mapped to exactly one phase:
 
 | Category | Phase | Count | Status |
 |----------|-------|-------|--------|
-| Data Synchronization | 1 | 4/4 | Complete   |
-| Error Handling | 2 | 4/4 | Complete   |
-| State Management | 3 | 4/4 | Complete   |
-| Security Fixes | 4 | 4 | Complete    | 2026-03-26 | Code Quality | 5 | 4 | Pending |
+| Data Synchronization | 1 | 4/4 | Complete |
+| Error Handling | 2 | 4/4 | Complete |
+| State Management | 3 | 4/4 | Complete |
+| Security Fixes | 4 | 4/4 | Complete |
+| Code Quality | 5 | 4/4 | Planning complete |
 
 **Coverage:** 20/20 requirements mapped ✓
 
@@ -143,14 +148,17 @@ All v1 requirements mapped to exactly one phase:
 
 ## Key Decisions
 
-- **Modularize:** Split single file into modules for maintainability
-- **Supabase Subscriptions:** Use real-time listeners for sync (not polling)
-- **Server-Side Validation:** Validate sensitive operations on backend
-- **Structured Logging:** Add context to errors for debugging
+- **Modularize:** Split single file into modules for maintainability (factory functions, keep single HTML file)
+- **Supabase Subscriptions:** Use real-time listeners for sync (Phase 1)
+- **Server-Side Validation:** Validate sensitive operations on backend (Phase 4)
+- **Structured Logging:** Add context to errors for debugging (Phase 2)
+- **Event-driven modules:** Modules communicate via events, not direct calls (Phase 5)
 
 ---
 
 *Roadmap created: 2026-03-26*
 *Phase 1 planned: 2026-03-26*
 *Phase 2 planned: 2026-03-26*
+*Phase 3 planned: 2026-03-26*
 *Phase 4 planned: 2026-03-26*
+*Phase 5 planned: 2026-03-26*
