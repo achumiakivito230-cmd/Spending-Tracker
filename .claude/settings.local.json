@@ -6,7 +6,8 @@
       "Skill(gsd:execute-phase)",
       "mcp__gmail__search_emails",
       "Skill(update-config)",
-      "Skill(update-config:*)"
+      "Skill(update-config:*)",
+      "Skill(ralph-loop:ralph-loop)"
     ]
   }
 }

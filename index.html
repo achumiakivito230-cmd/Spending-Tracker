@@ -176,10 +176,10 @@
     .auth-submit {
       width: 100%; padding: 17px; background: var(--lime); border: none; border-radius: 16px;
       color: #09090C; font-family: 'Bricolage Grotesque', sans-serif; font-size: 16px; font-weight: 800;
-      cursor: pointer; margin-top: 6px;
+      cursor: pointer; margin-top: 6px; pointer-events: auto;
       box-shadow: 0 4px 22px rgba(200,255,0,.22);
       transition: background .18s, box-shadow .18s, opacity .18s;
-      -webkit-tap-highlight-color: transparent;
+      -webkit-tap-highlight-color: transparent; position: relative; z-index: 10;
     }
     .auth-submit:hover { background: #d4ff1a; box-shadow: 0 6px 30px rgba(200,255,0,.38); }
     .auth-submit:disabled { opacity: .4; cursor: not-allowed; }
@@ -2205,13 +2205,21 @@
     }
 
     async function doAuth() {
+      console.log('🔵 doAuth called');
       const email = document.getElementById('auth-email').value.trim();
       const pass  = document.getElementById('auth-pass').value;
       const errEl = document.getElementById('auth-error');
       const btn   = document.getElementById('auth-submit');
 
+      console.log('📧 Email:', email);
+      console.log('🔑 Pass:', pass ? '[entered]' : '[empty]');
+
       errEl.textContent = '';
-      if (!email || !pass) { errEl.textContent = 'Enter email and password.'; return; }
+      if (!email || !pass) {
+        errEl.textContent = 'Enter email and password.';
+        console.log('⚠️ Email or password empty');
+        return;
+      }
       if (!db) { errEl.textContent = 'Database not connected.'; return; }
 
       btn.disabled = true;
@@ -2241,13 +2249,13 @@
       }
 
       // If signup, Supabase may require email confirmation
-      if (authMode === 'signup' && !result.data.session) {
+      if (authMode === 'signup' && !result.data?.session) {
         errEl.style.color = 'var(--lime)';
         errEl.textContent = 'Check your email to confirm your account.';
         return;
       }
 
-      currentUser = result.data.user || result.data.session?.user;
+      currentUser = result.data?.user || result.data?.session?.user;
       if (currentUser?.email) localStorage.setItem('spend_last_email', currentUser.email);
       onSignedIn();
     }
@@ -4163,6 +4171,13 @@
       toast('Label added', 'ok');
     });
     document.getElementById('ml-input').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('btn-ml-add').click(); });
+
+    // Debug button clicks
+    document.getElementById('auth-submit').addEventListener('click', (e) => {
+      console.log('🖱️ Button clicked! Event:', e);
+      console.log('Button disabled:', e.target.disabled);
+      console.log('Button pointer-events:', window.getComputedStyle(e.target).pointerEvents);
+    });
 
     document.getElementById('modal-cancel').addEventListener('click', closeEditModal);
     document.getElementById('modal-save').addEventListener('click', saveEdit);
