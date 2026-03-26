@@ -28,8 +28,8 @@
 
 ### Security Fixes
 
-- [ ] **SEC-01**: Label names sanitized in DOM to prevent XSS attacks
-- [ ] **SEC-02**: Admin email moved to environment variable (not hardcoded)
+- [x] **SEC-01**: Label names sanitized in DOM to prevent XSS attacks
+- [x] **SEC-02**: Admin email moved to environment variable (not hardcoded)
 - [ ] **SEC-03**: PIN hashing uses Argon2/PBKDF2 with salt (not unsalted SHA-256)
 - [ ] **SEC-04**: WebAuthn credentials encrypted before localStorage storage
 
@@ -85,8 +85,8 @@
 | STATE-02 | Phase 3 | Complete |
 | STATE-03 | Phase 3 | Complete |
 | STATE-04 | Phase 3 | Complete |
-| SEC-01 | Phase 4 | Pending |
-| SEC-02 | Phase 4 | Pending |
+| SEC-01 | Phase 4 | Complete |
+| SEC-02 | Phase 4 | Complete |
 | SEC-03 | Phase 4 | Pending |
 | SEC-04 | Phase 4 | Pending |
 | QUAL-01 | Phase 5 | Pending |
