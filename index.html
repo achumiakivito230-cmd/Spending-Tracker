@@ -3040,7 +3040,25 @@
       }
 
       if (filtered.length===0) {
-        list.innerHTML=`<div class="hist-empty"><div class="hist-empty-icon">💸</div><div class="hist-empty-text">${filter?`No "${filter}" expenses yet.`:'Nothing logged yet.<br>Go spend something!'}</div></div>`;
+        const empty = document.createElement('div');
+        empty.className = 'hist-empty';
+
+        const icon = document.createElement('div');
+        icon.className = 'hist-empty-icon';
+        icon.textContent = '💸';
+        empty.appendChild(icon);
+
+        const text = document.createElement('div');
+        text.className = 'hist-empty-text';
+        if (filter) {
+          text.textContent = `No "${filter}" expenses yet.`;
+        } else {
+          text.innerHTML = 'Nothing logged yet.<br>Go spend something!';
+        }
+        empty.appendChild(text);
+
+        list.innerHTML = '';
+        list.appendChild(empty);
         return;
       }
 
