@@ -1199,7 +1199,7 @@
     //   CREATE POLICY "read all" ON feature_requests FOR SELECT USING (true);
     //   CREATE POLICY "admin all" ON feature_requests FOR ALL USING (true);
     // Also create a Supabase Storage bucket named "voice-feedback" (private).
-    const ADMIN_EMAIL = 'achumiakivito230@gmail.com';
+    const ADMIN_EMAIL = 'ADMIN_EMAIL_PLACEHOLDER';
 
     // ════════════════════════════
     // CURRENCY
@@ -2944,13 +2944,37 @@
 
         const inner=document.createElement('div');
         inner.className='tx-inner';
-        inner.innerHTML=`
-          <div class="tx-dot" style="background:${bg}"></div>
-          <div class="tx-meta">
-            <div class="tx-name">${tx.label_name||'Unlabeled'}</div>
-            <div class="tx-when">${relTime(tx.created_at)}</div>
-          </div>
-          <div class="tx-money">${sym()}${fmtNum(tx.amount)}</div>`;
+
+        // tx-dot
+        const dot=document.createElement('div');
+        dot.className='tx-dot';
+        dot.style.background=bg;
+        inner.appendChild(dot);
+
+        // tx-meta
+        const meta=document.createElement('div');
+        meta.className='tx-meta';
+
+        // tx-name (safe: textContent prevents XSS)
+        const nameDiv=document.createElement('div');
+        nameDiv.className='tx-name';
+        nameDiv.textContent=tx.label_name||'Unlabeled';
+        meta.appendChild(nameDiv);
+
+        // tx-when
+        const whenDiv=document.createElement('div');
+        whenDiv.className='tx-when';
+        whenDiv.textContent=relTime(tx.created_at);
+        meta.appendChild(whenDiv);
+
+        inner.appendChild(meta);
+
+        // tx-money
+        const moneyDiv=document.createElement('div');
+        moneyDiv.className='tx-money';
+        moneyDiv.textContent=sym()+fmtNum(tx.amount);
+        inner.appendChild(moneyDiv);
+
         inner.addEventListener('click',()=>{ if (!row.classList.contains('swiped')) openEditModal(tx,row); });
 
         const trash=document.createElement('button');
