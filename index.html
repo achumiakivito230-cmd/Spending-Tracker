@@ -2404,7 +2404,17 @@
 
       const top = document.createElement('div');
       top.className = 'budget-card-top';
-      top.innerHTML = `<div class="budget-dot" style="background:${dotColor}"></div><div class="budget-name">${name}</div>`;
+
+      const dot = document.createElement('div');
+      dot.className = 'budget-dot';
+      dot.style.background = dotColor;
+      top.appendChild(dot);
+
+      const nameDiv = document.createElement('div');
+      nameDiv.className = 'budget-name';
+      nameDiv.textContent = name;
+      top.appendChild(nameDiv);
+
       card.appendChild(top);
 
       const rowsWrap = document.createElement('div');
