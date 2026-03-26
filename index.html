@@ -2850,14 +2850,24 @@
     // ════════════════════════════
     // HISTORY
     // ════════════════════════════
-    async function loadHistory() {
-      const list=document.getElementById('tx-list');
-      list.innerHTML=`<div style="color:var(--muted);font-size:14px;padding:28px 0;text-align:center">Loading…</div>`;
-      document.getElementById('filter-row').innerHTML='';
-      activeFilter=null;
+    let _historyLoading = null;
 
-      if (!db) { list.innerHTML=`<div style="color:var(--muted);font-size:14px;padding:28px 0;text-align:center">No connection.</div>`; return; }
-      const {data,error}=await db.from('expenses').select('*').order('created_at',{ascending:false}).limit(200);
+    async function loadHistory() {
+      if (_historyLoading) return _historyLoading;
+      _historyLoading = _doLoadHistory();
+      try { await _historyLoading; } finally { _historyLoading = null; }
+    }
+
+    async function _doLoadHistory() {
+      const targetScreen = screen;
+      const list = document.getElementById('tx-list');
+      list.innerHTML = `<div style="color:var(--muted);font-size:14px;padding:28px 0;text-align:center">Loading…</div>`;
+      document.getElementById('filter-row').innerHTML = '';
+      activeFilter = null;
+
+      if (!db) { list.innerHTML = `<div style="color:var(--muted);font-size:14px;padding:28px 0;text-align:center">No connection.</div>`; return; }
+      const { data, error } = await db.from('expenses').select('*').order('created_at', { ascending: false }).limit(200);
+
       if (error || !data) {
         logError('loadHistory', error);
         list.innerHTML = `<div style="color:var(--muted);font-size:14px;padding:28px 0;text-align:center">Could not load transactions — tap to retry</div>`;
@@ -2866,7 +2876,8 @@
       }
 
       if (!Array.isArray(data)) return;
-      allTxData=data;
+      if (screen !== targetScreen) return;
+      allTxData = data;
       renderFilterChips(data);
       renderHistory(data, null);
     }
