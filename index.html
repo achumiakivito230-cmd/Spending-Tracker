@@ -3295,13 +3295,22 @@
       btn.addEventListener('click', async () => {
         const newName = input.value.trim();
         if (!newName || newName === lbl.name) { UIModule.closeMenu('rename-input'); return; }
-        const { error } = await db.from('labels').update({ name: newName }).eq('id', lbl.id);
-        if (error) { logError('renameLabelPrompt', error); errorToast(error, 'Could not rename label'); return; }
-        lbl.name = newName;
-        localStorage.setItem(labelCacheKey(), JSON.stringify(labels));
-        UIModule.closeMenu('rename-input'); // closes menu and removes row via onClose callback
-        renderChips();
-        toast('Label renamed', 'ok');
+        if (!db) { toast('No DB connection'); return; }
+
+        btn.disabled = true;
+        try {
+          const { error } = await db.from('labels').update({ name: newName }).eq('id', lbl.id);
+          if (error) { logError('renameLabelPrompt', error); errorToast(error, 'Could not rename label'); return; }
+
+          lbl.name = newName;
+          DataModule.setLabels(labels);  // ← SYNC to DataModule!
+          localStorage.setItem(labelCacheKey(), JSON.stringify(labels));
+          UIModule.closeMenu('rename-input');
+          renderChips();
+          toast('Label renamed', 'ok');
+        } finally {
+          btn.disabled = false;
+        }
       });
       row.appendChild(input); row.appendChild(btn);
       chipEl.style.position = 'relative';
@@ -3358,10 +3367,19 @@
             const newName = input.value.trim();
             if (newName && newName !== lbl.name) {
               const { error } = await db.from('labels').update({ name: newName }).eq('id', lbl.id);
-              if (!error) { lbl.name = newName; localStorage.setItem(labelCacheKey(), JSON.stringify(labels)); toast('Renamed', 'ok'); }
-              else { logError('renderManageLabels/rename', error); errorToast(error, 'Could not rename label'); }
+              if (!error) {
+                lbl.name = newName;
+                DataModule.setLabels(labels);  // ← SYNC to DataModule!
+                localStorage.setItem(labelCacheKey(), JSON.stringify(labels));
+                toast('Renamed', 'ok');
+              } else {
+                logError('renderManageLabels/rename', error);
+                errorToast(error, 'Could not rename label');
+              }
             }
-            row.replaceChild(name, input); name.textContent = lbl.name; dot.style.background = chipColor(lbl.name).bg;
+            row.replaceChild(name, input);
+            name.textContent = lbl.name;
+            dot.style.background = chipColor(lbl.name).bg;
           };
           input.addEventListener('blur', save);
           input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
