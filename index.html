@@ -2190,10 +2190,21 @@
       btn.innerHTML = '<span class="spin" style="border-top-color:#09090C;width:18px;height:18px"></span>';
 
       let result;
-      if (authMode === 'signup') {
-        result = await db.auth.signUp({ email, password: pass });
-      } else {
-        result = await db.auth.signInWithPassword({ email, password: pass });
+      try {
+        const authPromise = authMode === 'signup'
+          ? db.auth.signUp({ email, password: pass })
+          : db.auth.signInWithPassword({ email, password: pass });
+
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Auth request timed out. Please try again.')), 30000)
+        );
+
+        result = await Promise.race([authPromise, timeoutPromise]);
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = authMode === 'signin' ? 'Sign in' : 'Create account';
+        errEl.textContent = err.message || 'Sign in failed. Please try again.';
+        return;
       }
 
       btn.disabled = false;
