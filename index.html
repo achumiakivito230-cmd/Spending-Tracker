@@ -2864,6 +2864,7 @@
         return;
       }
 
+      if (!Array.isArray(data)) return;
       allTxData=data;
       renderFilterChips(data);
       renderHistory(data, null);
