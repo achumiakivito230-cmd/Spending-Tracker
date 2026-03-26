@@ -1193,6 +1193,14 @@
       ]);
     }
 
+    // Helper: Escape HTML to prevent XSS
+    function escapeHtml(text) {
+      if (!text) return '';
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
     // ── ADMIN CONFIG ──
     // To enable admin panel, set this to your login email.
     // Also run this SQL in Supabase Dashboard → SQL Editor:
@@ -2684,9 +2692,9 @@
         const card = document.createElement('div'); card.className = 'fb-card';
         const d = new Date(f.created_at);
         const dateStr = d.toLocaleDateString([], { month:'short', day:'numeric' }) + ' · ' + d.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
-        let html = `<div class="fb-card-meta"><span class="fb-badge ${f.rating||'good'}">${ratingLabels[f.rating]||f.rating}</span><span class="fb-card-email">${f.user_email||'unknown'}</span><span class="fb-card-date">${dateStr}</span></div>`;
-        if (f.message) html += `<div class="fb-card-msg">${f.message}</div>`;
-        if (f.features_requested) html += `<div class="fb-card-feat">💡 ${f.features_requested}</div>`;
+        let html = `<div class="fb-card-meta"><span class="fb-badge ${f.rating||'good'}">${ratingLabels[f.rating]||f.rating}</span><span class="fb-card-email">${escapeHtml(f.user_email||'unknown')}</span><span class="fb-card-date">${dateStr}</span></div>`;
+        if (f.message) html += `<div class="fb-card-msg">${escapeHtml(f.message)}</div>`;
+        if (f.features_requested) html += `<div class="fb-card-feat">💡 ${escapeHtml(f.features_requested)}</div>`;
         if (f.voice_url) {
           // Generate a signed URL (works for private buckets)
           const { data: signed } = await db.storage.from('Voice Feedback').createSignedUrl(f.voice_url, 3600);
@@ -2751,7 +2759,7 @@
         col.appendChild(hdr);
         (data||[]).filter(r => r.status === status).forEach(r => {
           const card = document.createElement('div'); card.className = 'feat-card';
-          card.innerHTML = `<div class="feat-card-title">${r.title}</div>${r.description ? `<div class="feat-card-desc">${r.description}</div>` : ''}`;
+          card.innerHTML = `<div class="feat-card-title">${escapeHtml(r.title)}</div>${r.description ? `<div class="feat-card-desc">${escapeHtml(r.description)}</div>` : ''}`;
           card.onclick = () => cycleFeatStatus(r.id, r.status);
           col.appendChild(card);
         });
@@ -2774,9 +2782,22 @@
       const saveBtn = document.createElement('button'); saveBtn.className = 'feat-add-save'; saveBtn.textContent = 'Add';
       saveBtn.onclick = async () => {
         const title = titleInput.value.trim();
-        if (!title) return;
-        await db.from('feature_requests').insert({ title, description: descInput.value.trim()||null, status });
-        loadFeatureBoard();
+        if (!title) { toast('Title required'); return; }
+        if (title.length > 200) { toast('Title too long (max 200 chars)'); return; }
+        const desc = descInput.value.trim();
+        if (desc.length > 1000) { toast('Description too long (max 1000 chars)'); return; }
+        saveBtn.disabled = true;
+        try {
+          await withTimeout(db.from('feature_requests').insert({ title, description: desc||null, status }), 10000);
+          form.remove();
+          loadFeatureBoard();
+          toast('Feature added', 'ok');
+        } catch (err) {
+          logError('addFeature', err);
+          toast('Could not add feature — try again');
+        } finally {
+          saveBtn.disabled = false;
+        }
       };
       form.appendChild(titleInput); form.appendChild(descInput); form.appendChild(saveBtn);
       col.appendChild(form);
@@ -2785,13 +2806,29 @@
 
     async function cycleFeatStatus(id, current) {
       const next = { todo:'in_progress', in_progress:'done', done:'todo' };
-      await db.from('feature_requests').update({ status: next[current] }).eq('id', id);
-      loadFeatureBoard();
+      const nextStatus = next[current];
+      if (!nextStatus) { logError('cycleFeatStatus', 'Invalid status'); return; }
+      try {
+        await withTimeout(db.from('feature_requests').update({ status: nextStatus }).eq('id', id), 10000);
+        loadFeatureBoard();
+      } catch (err) {
+        logError('cycleFeatStatus', err);
+        toast('Could not update — try again');
+      }
     }
 
     async function loadAnnouncements() {
       const body = document.getElementById('admin-body');
-      const { data } = await db.from('announcements').select('*').order('created_at', { ascending: false });
+      let data;
+      try {
+        const result = await withTimeout(db.from('announcements').select('*').order('created_at', { ascending: false }), 10000);
+        if (result.error) throw result.error;
+        data = result.data;
+      } catch (err) {
+        logError('loadAnnouncements', err);
+        body.innerHTML = `<div class="admin-empty">Could not load announcements. Try again later.</div>`;
+        return;
+      }
       body.innerHTML = '';
       const wrap = document.createElement('div'); wrap.className = 'announce-wrap';
       const textarea = document.createElement('textarea'); textarea.className = 'announce-input'; textarea.placeholder = 'Write an announcement for all users…';
@@ -2799,13 +2836,19 @@
       sendBtn.style.marginTop = '0';
       sendBtn.onclick = async () => {
         const msg = textarea.value.trim();
-        if (!msg) return;
+        if (!msg) { toast('Cannot send empty announcement'); return; }
+        if (msg.length > 5000) { toast('Announcement too long (max 5000 chars)'); return; }
         sendBtn.disabled = true;
-        await db.from('announcements').insert({ message: msg, is_active: true });
-        textarea.value = '';
-        sendBtn.disabled = false;
-        toast('Announcement sent!', 'ok');
-        loadAnnouncements();
+        try {
+          await withTimeout(db.from('announcements').insert({ message: msg, is_active: true }), 10000);
+          textarea.value = '';
+          toast('Announcement sent!', 'ok');
+          loadAnnouncements();
+        } catch (err) {
+          logError('sendAnnouncement', err);
+          toast('Could not send — try again');
+          sendBtn.disabled = false;
+        }
       };
       wrap.appendChild(textarea); wrap.appendChild(sendBtn);
       if (data?.length) {
@@ -2820,8 +2863,15 @@
           toggle.className = 'announce-toggle' + (ann.is_active ? ' active' : '');
           toggle.textContent = ann.is_active ? 'Live' : 'Off';
           toggle.onclick = async () => {
-            await db.from('announcements').update({ is_active: !ann.is_active }).eq('id', ann.id);
-            loadAnnouncements();
+            toggle.disabled = true;
+            try {
+              await withTimeout(db.from('announcements').update({ is_active: !ann.is_active }).eq('id', ann.id), 10000);
+              loadAnnouncements();
+            } catch (err) {
+              logError('toggleAnnouncement', err);
+              toast('Could not toggle — try again');
+              toggle.disabled = false;
+            }
           };
           card.appendChild(msg); card.appendChild(toggle);
           wrap.appendChild(card);
@@ -3245,15 +3295,32 @@
       const btn=document.createElement('button');
       btn.className='budget-set-btn'; btn.textContent='Set';
       btn.addEventListener('click',async()=>{
-        const val=parseFloat(input.value)||null;
+        const input_val = input.value.trim();
+        let val;
+        if (input_val === '') {
+          val = null;
+        } else {
+          const parsed = parseFloat(input_val);
+          if (isNaN(parsed)) { toast('Invalid budget amount'); return; }
+          if (parsed < 0) { toast('Budget cannot be negative'); return; }
+          val = parsed;
+        }
         if (!db) { toast('No DB connection'); UIModule.closeMenu('budget-input'); return; }
-        await db.from('labels').update({budget:val}).eq('id',lbl.id);
-        lbl.budget=val;
-        localStorage.setItem(labelCacheKey(),JSON.stringify(labels));
-        UIModule.closeMenu('budget-input'); // closes menu and removes row via onClose callback
-        await loadMonthTotals();
-        renderChips();
-        toast(val?`Budget set: ${sym()}${val.toFixed(2)}`:'Budget cleared', 'ok');
+        btn.disabled = true;
+        try {
+          await withTimeout(db.from('labels').update({budget:val}).eq('id',lbl.id), 10000);
+          lbl.budget=val;
+          localStorage.setItem(labelCacheKey(),JSON.stringify(labels));
+          UIModule.closeMenu('budget-input'); // closes menu and removes row via onClose callback
+          await loadMonthTotals();
+          renderChips();
+          toast(val?`Budget set: ${sym()}${val.toFixed(2)}`:'Budget cleared', 'ok');
+        } catch (err) {
+          logError('setBudget', err);
+          toast('Could not set budget — try again');
+        } finally {
+          btn.disabled = false;
+        }
       });
       row.appendChild(input); row.appendChild(btn);
       chipEl.style.position='relative';
@@ -3812,7 +3879,7 @@
         const {bg} = chipColor(name);
         const item = document.createElement('div');
         item.className = 'legend-item';
-        item.innerHTML = `<div class="legend-dot" style="background:${bg}"></div><div class="legend-name">${name}</div><div class="legend-pct">${(val/grand*100).toFixed(1)}%</div><div class="legend-amt">${sym()}${fmtNum(val)}</div>`;
+        item.innerHTML = `<div class="legend-dot" style="background:${bg}"></div><div class="legend-name">${escapeHtml(name)}</div><div class="legend-pct">${(val/grand*100).toFixed(1)}%</div><div class="legend-amt">${sym()}${fmtNum(val)}</div>`;
         legend.appendChild(item);
       });
       body.appendChild(legend);
@@ -3945,7 +4012,7 @@
         const {bg} = chipColor(name);
         const item = document.createElement('div');
         item.className = 'legend-item';
-        item.innerHTML = `<div class="legend-dot" style="background:${bg}"></div><div class="legend-name">${name}</div><div class="legend-pct">${(val/grand*100).toFixed(1)}%</div><div class="legend-amt">${sym()}${fmtNum(val)}</div>`;
+        item.innerHTML = `<div class="legend-dot" style="background:${bg}"></div><div class="legend-name">${escapeHtml(name)}</div><div class="legend-pct">${(val/grand*100).toFixed(1)}%</div><div class="legend-amt">${sym()}${fmtNum(val)}</div>`;
         legend.appendChild(item);
       });
       body.appendChild(legend);
