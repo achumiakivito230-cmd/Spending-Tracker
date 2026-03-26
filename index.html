@@ -1779,8 +1779,8 @@
       screen = 'numpad';
       animateShapes();
       updateTabBar();
-      Promise.all([loadLabels(), loadMonthTotals()])
-        .then(() => refreshDisplay())
+      Promise.all([DataModule.loadLabels(), DataModule.loadMonthTotals()])
+        .then(() => { labels = DataModule.getLabels(); refreshDisplay(); })
         .catch(err => {
           logError('unlockToNumpad/Promise.all', err);
           toast('Could not load your data — reload the page to try again');
@@ -2196,8 +2196,8 @@
       applyAccent(localStorage.getItem(accentKey()) || '#C8FF00');
 
       // Load data
-      Promise.all([loadLabels(), loadMonthTotals()])
-        .then(() => refreshDisplay())
+      Promise.all([DataModule.loadLabels(), DataModule.loadMonthTotals()])
+        .then(() => { labels = DataModule.getLabels(); refreshDisplay(); })
         .catch(err => {
           logError('onSignedIn/Promise.all', err);
           toast('Could not load your data — reload the page to try again');
@@ -2977,25 +2977,10 @@
     // ════════════════════════════
     function labelCacheKey() { return `spend_labels_${currentUser?.id || 'anon'}`; }
 
-    let _labelsLoading = null;
-
     async function loadLabels() {
-      if (_labelsLoading) return _labelsLoading;
-      _labelsLoading = _doLoadLabels();
-      try { await _labelsLoading; } finally { _labelsLoading = null; }
-    }
-
-    async function _doLoadLabels() {
-      const cached=localStorage.getItem(labelCacheKey());
-      if (cached) try { labels=JSON.parse(cached); } catch {}
-      if (!db) return;
-      const { data, error } = await db.from('labels').select('*').order('created_at', { ascending: false });
-      if (error) {
-        logError('loadLabels', error);
-        if (!labels.length) toast('Could not load labels — check your connection');
-        return;
-      }
-      if (Array.isArray(data)) { labels = data; localStorage.setItem(labelCacheKey(), JSON.stringify(labels)); renderChips(); }
+      await DataModule.loadLabels();
+      labels = DataModule.getLabels(); // sync global
+      renderChips();
     }
 
     // ════════════════════════════
@@ -3097,13 +3082,7 @@
     }
 
     async function loadMonthTotals() {
-      if (!db) return;
-      const { data, error } = await db.from('expenses').select('label_name,amount').gte('created_at', monthStart());
-      if (error) { logError('loadMonthTotals', error); return; }
-      if (!data) return;
-      const totals={};
-      data.forEach(r=>{ totals[r.label_name]=(totals[r.label_name]||0)+parseFloat(r.amount); });
-      monthTotals=totals;
+      return DataModule.loadMonthTotals();
     }
 
     function renderChips() {
@@ -3385,25 +3364,15 @@
     async function _doLoadHistory() {
       const targetScreen = screen;
       const list = document.getElementById('tx-list');
-      list.innerHTML = `<div style="color:var(--muted);font-size:14px;padding:28px 0;text-align:center">Loading…</div>`;
+      list.innerHTML = `<div style="color:var(--muted);font-size:14px;padding:28px 0;text-align:center">Loading\u2026</div>`;
       document.getElementById('filter-row').innerHTML = '';
       activeFilter = null;
-
       if (!db) { list.innerHTML = `<div style="color:var(--muted);font-size:14px;padding:28px 0;text-align:center">No connection.</div>`; return; }
-      const { data, error } = await db.from('expenses').select('*').order('created_at', { ascending: false }).limit(200);
-
-      if (error || !data) {
-        logError('loadHistory', error);
-        list.innerHTML = `<div style="color:var(--muted);font-size:14px;padding:28px 0;text-align:center">Could not load transactions — tap to retry</div>`;
-        toast('Could not load transactions — check your connection');
-        return;
-      }
-
-      if (!Array.isArray(data)) return;
+      await DataModule.loadHistory();
       if (screen !== targetScreen) return;
-      allTxData = data;
-      renderFilterChips(data);
-      renderHistory(data, null);
+      allTxData = DataModule.getTransactions();
+      renderFilterChips(allTxData);
+      renderHistory(allTxData, null);
     }
 
     function renderFilterChips(data) {
