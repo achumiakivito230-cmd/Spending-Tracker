@@ -3025,15 +3025,15 @@
       if (eventType === 'INSERT') {
         // Guard against duplicate: app may have already added row optimistically
         if (allTxData.some(tx => tx.id === newRow.id)) return;
-        allTxData.unshift(newRow);
+        allTxData.unshift(newRow); DataModule.setTransactions(allTxData);
 
       } else if (eventType === 'UPDATE') {
         const idx = allTxData.findIndex(tx => tx.id === newRow.id);
-        if (idx !== -1) allTxData[idx] = newRow;
+        if (idx !== -1) { allTxData[idx] = newRow; DataModule.setTransactions(allTxData); }
 
       } else if (eventType === 'DELETE') {
         // DELETE payload.old contains only primary key — use id only
-        allTxData = allTxData.filter(tx => tx.id !== oldRow.id);
+        allTxData = allTxData.filter(tx => tx.id !== oldRow.id); DataModule.setTransactions(allTxData);
       }
 
       // Re-render only the visible screen
@@ -3049,14 +3049,14 @@
 
       if (eventType === 'INSERT') {
         if (labels.some(l => l.id === newRow.id)) return;
-        labels.unshift(newRow);
+        labels.unshift(newRow); DataModule.setLabels(labels);
 
       } else if (eventType === 'UPDATE') {
         const idx = labels.findIndex(l => l.id === newRow.id);
-        if (idx !== -1) labels[idx] = newRow;
+        if (idx !== -1) { labels[idx] = newRow; DataModule.setLabels(labels); }
 
       } else if (eventType === 'DELETE') {
-        labels = labels.filter(l => l.id !== oldRow.id);
+        labels = labels.filter(l => l.id !== oldRow.id); DataModule.setLabels(labels);
       }
 
       // Update localStorage cache
@@ -3228,7 +3228,7 @@
       if (!confirm(`Delete "${lbl.name}"? This won't delete existing expenses.`)) return;
       const { error } = await db.from('labels').delete().eq('id', lbl.id);
       if (error) { logError('deleteLabel', error); errorToast(error, 'Could not delete label'); return; }
-      labels = labels.filter(l => l.id !== lbl.id);
+      labels = labels.filter(l => l.id !== lbl.id); DataModule.setLabels(labels);
       localStorage.setItem(labelCacheKey(), JSON.stringify(labels));
       if (picked?.id === lbl.id) { picked = null; document.getElementById('btn-save').disabled = true; }
       renderChips();
@@ -3292,7 +3292,7 @@
           if (!confirm(`Delete "${lbl.name}"?`)) return;
           const { error } = await db.from('labels').delete().eq('id', lbl.id);
           if (error) { logError('renderManageLabels/delete', error); errorToast(error, 'Could not delete label'); return; }
-          labels = labels.filter(l => l.id !== lbl.id);
+          labels = labels.filter(l => l.id !== lbl.id); DataModule.setLabels(labels);
           localStorage.setItem(labelCacheKey(), JSON.stringify(labels));
           row.remove();
           if (!labels.length) list.innerHTML = '<div class="chips-empty">No labels yet — add one above ↑</div>';
@@ -3320,7 +3320,7 @@
       if (currentUser) payload.user_id = currentUser.id;
       const {data,error}=await db.from('labels').insert(payload).select().single();
       if (error || !data) { logError('addLabel', error); errorToast(error, 'Could not add label'); return; }
-      labels.unshift(data);
+      labels.unshift(data); DataModule.setLabels(labels);
       localStorage.setItem(labelCacheKey(),JSON.stringify(labels));
       renderChips();
       document.getElementById('nl-input').value='';
@@ -3524,7 +3524,7 @@
         const {error}=await db.from('expenses').delete().eq('id',id);
         if (error) { logError('deleteExpense', error); rowEl.style.opacity = '1'; rowEl.style.transform = ''; errorToast(error, 'Could not delete — try again'); return; }
         rowEl.remove();
-        allTxData=allTxData.filter(t=>t.id!==id);
+        allTxData=allTxData.filter(t=>t.id!==id); DataModule.setTransactions(allTxData);
         renderFilterChips(allTxData);
         renderHistory(allTxData, activeFilter);
         toast('Deleted','ok');
@@ -3595,7 +3595,7 @@
       btn.innerHTML='Save';
       if (error) { logError('saveEdit', error); errorToast(error, 'Could not save changes — try again'); return; }
       const idx=allTxData.findIndex(t=>t.id===editTx.id);
-      if (idx>=0) { allTxData[idx]={...allTxData[idx],amount:amt,label_id:labelId,label_name:labelName}; }
+      if (idx>=0) { allTxData[idx]={...allTxData[idx],amount:amt,label_id:labelId,label_name:labelName}; DataModule.setTransactions(allTxData); }
       closeEditModal();
       renderFilterChips(allTxData);
       renderHistory(allTxData, activeFilter);
@@ -3887,7 +3887,7 @@
       const payload = { user_id: currentUser.id, name, color: null, budget: null };
       const { data, error } = await db.from('labels').insert(payload).select().single();
       if (error) { logError('addLabel/manageLabels', error); errorToast(error, 'Could not add label'); return; }
-      labels.unshift(data);
+      labels.unshift(data); DataModule.setLabels(labels);
       localStorage.setItem(labelCacheKey(), JSON.stringify(labels));
       input.value = '';
       renderManageLabels();
