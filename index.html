@@ -1299,7 +1299,9 @@
       // Setters
       function setLabels(newLabels) {
         _labels = Array.isArray(newLabels) ? newLabels : [];
-        localStorage.setItem(`spend_labels_${currentUser?.id}`, JSON.stringify(_labels));
+        if (currentUser?.id) {
+          localStorage.setItem(`spend_labels_${currentUser.id}`, JSON.stringify(_labels));
+        }
       }
 
       function setTransactions(newTx) {
@@ -1312,6 +1314,10 @@
 
         _labelsLoading = (async () => {
           try {
+            if (!currentUser?.id) {
+              toast('User not authenticated');
+              return _labels;
+            }
             const { data, error } = await db.from('labels').select('*').eq('user_id', currentUser.id);
             if (error) throw error;
             setLabels(data || []);
@@ -1335,6 +1341,10 @@
 
         _historyLoading = (async () => {
           try {
+            if (!currentUser?.id) {
+              toast('User not authenticated');
+              return _allTxData;
+            }
             const { data, error } = await db.from('expenses')
               .select('*')
               .eq('user_id', currentUser.id)
@@ -1359,6 +1369,10 @@
       // Load month totals
       async function loadMonthTotals() {
         try {
+          if (!currentUser?.id) {
+            toast('User not authenticated');
+            return [];
+          }
           const { data, error } = await db.from('expenses')
             .select('amount, label_id, created_at')
             .eq('user_id', currentUser.id);
@@ -1683,6 +1697,8 @@
 
     function accentKey() { return `spend_accent_${currentUser?.id || 'anon'}`; }
 
+    function labelCacheKey() { return `spend_labels_${currentUser?.id || 'anon'}`; }
+
     function applyAccent(hex) {
       document.documentElement.style.setProperty('--lime', hex);
       if (currentUser) localStorage.setItem(accentKey(), hex);
@@ -1854,8 +1870,10 @@
     }
 
     // ── PIN Setup Sheet ──
+    let pinSetupInProgress = false;
+
     function showPinSetupSheet() {
-      pinSetupRaw = ''; pinSetupStep = 'enter'; pinSetupFirst = '';
+      pinSetupRaw = ''; pinSetupStep = 'enter'; pinSetupFirst = ''; pinSetupInProgress = false;
       document.getElementById('pin-sheet-title').textContent = 'Set up PIN';
       document.getElementById('pin-sheet-sub').textContent = 'Enter a 4-digit PIN for quick access next time';
       updatePinSheetDots();
@@ -1878,6 +1896,7 @@
     }
 
     async function pinSetupInput(k) {
+      if (pinSetupInProgress) return;  // Prevent input during setup
       if (k === '⌫') {
         pinSetupRaw = pinSetupRaw.slice(0, -1);
         updatePinSheetDots();
@@ -1897,9 +1916,14 @@
         } else {
           // Confirm step
           if (pinSetupRaw === pinSetupFirst) {
-            await setupPIN(pinSetupRaw);
-            closePinSheet();
-            toast('PIN set! You\'ll use it next time you open the app.', 'ok');
+            pinSetupInProgress = true;
+            try {
+              await setupPIN(pinSetupRaw);
+              closePinSheet();
+              toast('PIN set! You\'ll use it next time you open the app.', 'ok');
+            } finally {
+              pinSetupInProgress = false;
+            }
           } else {
             // Mismatch — restart
             pinSetupRaw = ''; pinSetupStep = 'enter'; pinSetupFirst = '';
@@ -2918,20 +2942,26 @@
 
     document.getElementById('bnp-cancel').addEventListener('click', closeBudgetNumpad);
 
-    document.getElementById('bnp-confirm').addEventListener('click', () => {
-      if (!bnpKey || !bnpPeriod) return;
-      const val = bnpRaw.trim();
-      const b = loadBudgets();
-      if (bnpKey === 'overall') {
-        b.overall = { ...(b.overall||{}), [bnpPeriod]: val };
-      } else {
-        const n = bnpKey.replace('label_', '');
-        b.labels = b.labels || {};
-        b.labels[n] = { ...(b.labels[n]||{}), [bnpPeriod]: val };
+    let bnpConfirming = false;
+    document.getElementById('bnp-confirm').addEventListener('click', async () => {
+      if (!bnpKey || !bnpPeriod || bnpConfirming) return;
+      bnpConfirming = true;
+      try {
+        const val = bnpRaw.trim();
+        const b = loadBudgets();
+        if (bnpKey === 'overall') {
+          b.overall = { ...(b.overall||{}), [bnpPeriod]: val };
+        } else {
+          const n = bnpKey.replace('label_', '');
+          b.labels = b.labels || {};
+          b.labels[n] = { ...(b.labels[n]||{}), [bnpPeriod]: val };
+        }
+        saveBudgets(b);
+        closeBudgetNumpad();
+        renderBudgetScreen();
+      } finally {
+        bnpConfirming = false;
       }
-      saveBudgets(b);
-      closeBudgetNumpad();
-      renderBudgetScreen();
     });
 
     function checkBudgetWarnings(labelName) {
@@ -3023,17 +3053,26 @@
       const { eventType, new: newRow, old: oldRow } = payload;
 
       if (eventType === 'INSERT') {
-        // Guard against duplicate: app may have already added row optimistically
-        if (allTxData.some(tx => tx.id === newRow.id)) return;
-        allTxData.unshift(newRow); DataModule.setTransactions(allTxData);
+        // Update or insert: if ID exists, update it; otherwise unshift
+        const idx = allTxData.findIndex(tx => tx.id === newRow.id);
+        if (idx !== -1) {
+          allTxData[idx] = newRow;  // Update with latest server data
+        } else {
+          allTxData.unshift(newRow);  // New row
+        }
+        DataModule.setTransactions(allTxData);
 
       } else if (eventType === 'UPDATE') {
         const idx = allTxData.findIndex(tx => tx.id === newRow.id);
-        if (idx !== -1) { allTxData[idx] = newRow; DataModule.setTransactions(allTxData); }
+        if (idx !== -1) {
+          allTxData[idx] = newRow;
+          DataModule.setTransactions(allTxData);
+        }
 
       } else if (eventType === 'DELETE') {
         // DELETE payload.old contains only primary key — use id only
-        allTxData = allTxData.filter(tx => tx.id !== oldRow.id); DataModule.setTransactions(allTxData);
+        allTxData = allTxData.filter(tx => tx.id !== oldRow.id);
+        DataModule.setTransactions(allTxData);
       }
 
       // Re-render only the visible screen
@@ -3048,19 +3087,28 @@
       const { eventType, new: newRow, old: oldRow } = payload;
 
       if (eventType === 'INSERT') {
-        if (labels.some(l => l.id === newRow.id)) return;
-        labels.unshift(newRow); DataModule.setLabels(labels);
+        const idx = labels.findIndex(l => l.id === newRow.id);
+        if (idx !== -1) {
+          labels[idx] = newRow;  // Update with latest server data
+        } else {
+          labels.unshift(newRow);  // New label
+        }
+        DataModule.setLabels(labels);
 
       } else if (eventType === 'UPDATE') {
         const idx = labels.findIndex(l => l.id === newRow.id);
-        if (idx !== -1) { labels[idx] = newRow; DataModule.setLabels(labels); }
+        if (idx !== -1) {
+          labels[idx] = newRow;
+          DataModule.setLabels(labels);
+        }
 
       } else if (eventType === 'DELETE') {
-        labels = labels.filter(l => l.id !== oldRow.id); DataModule.setLabels(labels);
+        labels = labels.filter(l => l.id !== oldRow.id);
+        DataModule.setLabels(labels);
       }
 
       // Update localStorage cache
-      if (currentUser) {
+      if (currentUser?.id) {
         localStorage.setItem(`spend_labels_${currentUser.id}`, JSON.stringify(labels));
       }
 
@@ -3333,21 +3381,32 @@
     // ════════════════════════════
     // SAVE EXPENSE
     // ════════════════════════════
+    let isSavingExpense = false;
+
     async function saveExpense() {
       if (!picked||parseAmt(raw)<=0) return;
+      if (isSavingExpense) return;  // Prevent double-submit on rapid clicks
+
+      isSavingExpense = true;
       const btn=document.getElementById('btn-save');
       btn.disabled=true; btn.innerHTML='<span class="spin"></span>';
-      if (!db) { toast('Add Supabase credentials first'); btn.disabled=false; btn.innerHTML='Save Expense'; return; }
-      const payload = { amount:parseAmt(raw), label_id:picked.id, label_name:picked.name };
-      if (currentUser) payload.user_id = currentUser.id;
-      const {error}=await db.from('expenses').insert(payload);
-      btn.innerHTML='Save Expense';
-      if (error) { logError('saveExpense', error); btn.disabled = false; errorToast(error, 'Could not save — try again'); return; }
 
-      toast('Saved!','ok');
-      checkBudgetWarnings(picked.name);
-      raw=''; refreshDisplay(); picked=null;
-      slideBack();
+      try {
+        if (!db) { toast('Add Supabase credentials first'); return; }
+        const payload = { amount:parseAmt(raw), label_id:picked.id, label_name:picked.name };
+        if (currentUser) payload.user_id = currentUser.id;
+        const {error}=await db.from('expenses').insert(payload);
+        if (error) { logError('saveExpense', error); errorToast(error, 'Could not save — try again'); return; }
+
+        toast('Saved!','ok');
+        checkBudgetWarnings(picked.name);
+        raw=''; refreshDisplay(); picked=null;
+        slideBack();
+      } finally {
+        isSavingExpense = false;
+        btn.disabled = false;
+        btn.innerHTML='Save Expense';
+      }
     }
 
     // ════════════════════════════
@@ -3518,17 +3577,44 @@
 
     async function deleteExpense(id, rowEl) {
       if (!db) { toast('No DB connection'); return; }
+
+      // Store original styles for restoration if needed
+      const originalOpacity = rowEl.style.opacity;
+      const originalTransform = rowEl.style.transform;
+
       rowEl.style.transition='opacity .2s, transform .2s';
-      rowEl.style.opacity='0'; rowEl.style.transform='translateX(40px)';
-      setTimeout(async()=>{
+      rowEl.style.opacity='0';
+      rowEl.style.transform='translateX(40px)';
+
+      try {
+        await new Promise(resolve => setTimeout(resolve, 200));
+
         const {error}=await db.from('expenses').delete().eq('id',id);
-        if (error) { logError('deleteExpense', error); rowEl.style.opacity = '1'; rowEl.style.transform = ''; errorToast(error, 'Could not delete — try again'); return; }
+        if (error) {
+          logError('deleteExpense', error);
+          errorToast(error, 'Could not delete — try again');
+          // Restore only if element still in DOM
+          if (document.body.contains(rowEl)) {
+            rowEl.style.opacity = originalOpacity;
+            rowEl.style.transform = originalTransform;
+          }
+          return;
+        }
+
+        allTxData=allTxData.filter(t=>t.id!==id);
+        DataModule.setTransactions(allTxData);
         rowEl.remove();
-        allTxData=allTxData.filter(t=>t.id!==id); DataModule.setTransactions(allTxData);
         renderFilterChips(allTxData);
         renderHistory(allTxData, activeFilter);
         toast('Deleted','ok');
-      },200);
+      } catch (err) {
+        logError('deleteExpense', err);
+        if (document.body.contains(rowEl)) {
+          rowEl.style.opacity = originalOpacity;
+          rowEl.style.transform = originalTransform;
+        }
+        toast('Something went wrong');
+      }
     }
 
     // ════════════════════════════
@@ -3569,6 +3655,10 @@
 
       // QUAL-03: Validate label still exists before saving (guards against label deleted while modal open)
       if (editLabel && editLabel.id) {
+        // Ensure _labels is populated before validating
+        if (DataModule.getLabels().length === 0) {
+          await DataModule.loadLabels().catch(() => {});
+        }
         if (!DataModule.validateLabelExists(editLabel.id)) {
           toast('Label was deleted, saving as unlabeled');
           editLabel = null;
@@ -3577,29 +3667,41 @@
 
       const btn=document.getElementById('modal-save');
       btn.innerHTML='<span class="spin" style="border-top-color:#09090C"></span>';
-      // Conflict detection: check if another device edited this expense since modal opened
-      if (editTx._capturedAt) {
-        const { data: current } = await db
-          .from('expenses')
-          .select('updated_at')
-          .eq('id', editTx.id)
-          .single();
-        if (current && current.updated_at !== editTx._capturedAt) {
-          // Conflict detected — inform user but proceed with save (last-write-wins)
-          toast('Note: this expense was edited on another device. Saving your version.');
+
+      try {
+        // Conflict detection: check if another device edited this expense since modal opened
+        if (editTx._capturedAt) {
+          const { data: current } = await db
+            .from('expenses')
+            .select('updated_at')
+            .eq('id', editTx.id)
+            .single();
+          if (current && current.updated_at !== editTx._capturedAt) {
+            // Conflict detected — inform user but proceed with save (last-write-wins)
+            toast('Note: this expense was edited on another device. Saving your version.');
+          }
         }
+        const labelId = editLabel ? editLabel.id : null;
+        const labelName = editLabel ? editLabel.name : null;
+        const {error}=await db.from('expenses').update({amount:amt, label_id:labelId, label_name:labelName}).eq('id',editTx.id);
+        if (error) { logError('saveEdit', error); errorToast(error, 'Could not save changes — try again'); return; }
+
+        const idx=allTxData.findIndex(t=>t.id===editTx.id);
+        if (idx>=0 && idx<allTxData.length) {
+          allTxData[idx]={...allTxData[idx],amount:amt,label_id:labelId,label_name:labelName};
+          DataModule.setTransactions(allTxData);
+        } else if (idx < 0) {
+          toast('This transaction was deleted. Closing editor.');
+          closeEditModal();
+          return;
+        }
+        closeEditModal();
+        renderFilterChips(allTxData);
+        renderHistory(allTxData, activeFilter);
+        toast('Updated!','ok');
+      } finally {
+        btn.innerHTML='Save';
       }
-      const labelId = editLabel ? editLabel.id : null;
-      const labelName = editLabel ? editLabel.name : null;
-      const {error}=await db.from('expenses').update({amount:amt, label_id:labelId, label_name:labelName}).eq('id',editTx.id);
-      btn.innerHTML='Save';
-      if (error) { logError('saveEdit', error); errorToast(error, 'Could not save changes — try again'); return; }
-      const idx=allTxData.findIndex(t=>t.id===editTx.id);
-      if (idx>=0) { allTxData[idx]={...allTxData[idx],amount:amt,label_id:labelId,label_name:labelName}; DataModule.setTransactions(allTxData); }
-      closeEditModal();
-      renderFilterChips(allTxData);
-      renderHistory(allTxData, activeFilter);
-      toast('Updated!','ok');
     }
 
     // ════════════════════════════
