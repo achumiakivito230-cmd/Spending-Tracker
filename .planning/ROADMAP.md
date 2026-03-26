@@ -78,11 +78,11 @@ Plans:
 
 **Requirements:** SEC-01, SEC-02, SEC-03, SEC-04
 
-**Plans:** 1/2 plans complete
+**Plans:** 2/3 plans complete
 
 Plans:
 - [x] 04-01-PLAN.md — XSS fix: replace innerHTML with textContent for label rendering; move admin email to env variable placeholder *(complete 2026-03-26)*
-- [ ] 04-02-PLAN.md — PIN hashing: upgrade to PBKDF2 with 600,000 iterations; encrypt WebAuthn credential IDs with AES-GCM
+- [x] 04-02-PLAN.md — PIN hashing: upgrade to PBKDF2 with 600,000 iterations; encrypt WebAuthn credential IDs with AES-GCM *(complete 2026-03-26)*
 
 **Success Criteria:**
 1. Label names rendered with `textContent` (XSS vectors blocked)

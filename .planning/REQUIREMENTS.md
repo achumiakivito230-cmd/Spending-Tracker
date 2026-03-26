@@ -30,8 +30,8 @@
 
 - [x] **SEC-01**: Label names sanitized in DOM to prevent XSS attacks
 - [x] **SEC-02**: Admin email moved to environment variable (not hardcoded)
-- [ ] **SEC-03**: PIN hashing uses Argon2/PBKDF2 with salt (not unsalted SHA-256)
-- [ ] **SEC-04**: WebAuthn credentials encrypted before localStorage storage
+- [x] **SEC-03**: PIN hashing uses Argon2/PBKDF2 with salt (not unsalted SHA-256)
+- [x] **SEC-04**: WebAuthn credentials encrypted before localStorage storage
 
 ### Code Quality & Maintainability
 
@@ -87,8 +87,8 @@
 | STATE-04 | Phase 3 | Complete |
 | SEC-01 | Phase 4 | Complete |
 | SEC-02 | Phase 4 | Complete |
-| SEC-03 | Phase 4 | Pending |
-| SEC-04 | Phase 4 | Pending |
+| SEC-03 | Phase 4 | Complete |
+| SEC-04 | Phase 4 | Complete |
 | QUAL-01 | Phase 5 | Pending |
 | QUAL-02 | Phase 5 | Pending |
 | QUAL-03 | Phase 5 | Pending |
