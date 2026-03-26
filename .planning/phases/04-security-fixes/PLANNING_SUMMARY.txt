@@ -1,0 +1,172 @@
+PHASE 4: SECURITY FIXES - PLANNING COMPLETE
+============================================
+
+Date: 2026-03-26
+Planner: Claude GSD
+Status: Planning complete, ready for execution
+
+PHASE GOAL
+----------
+Close vulnerability gaps and harden authentication:
+- SEC-01: Label names sanitized in DOM to prevent XSS attacks
+- SEC-02: Admin email moved to environment variable (not hardcoded)
+- SEC-03: PIN hashing uses PBKDF2 with salt (not unsalted SHA-256)
+- SEC-04: WebAuthn credentials encrypted before localStorage storage
+
+RESEARCH QUALITY
+----------------
+Confidence: HIGH
+- All vulnerabilities documented in codebase analysis (CONCERNS.md)
+- OWASP guidance and MDN documentation confirms all fixes
+- No new external dependencies required (native crypto.subtle API)
+- Code examples provided in RESEARCH.md with full rationale
+
+PLAN STRUCTURE
+--------------
+Wave 1 (Parallel execution, no dependencies):
+  ├─ Plan 04-01: XSS fix + Admin email env var
+  │  └─ Requirements: SEC-01, SEC-02
+  │  └─ Tasks: 2 (innerHTML → textContent, hardcoded → placeholder)
+  │  └─ Files: index.html (lines ~1202, ~2940-2952)
+  │
+  └─ Plan 04-02: PIN hashing + Credential encryption
+     └─ Requirements: SEC-03, SEC-04
+     └─ Tasks: 2 (PBKDF2 setupPIN/verifyPIN, AES-GCM encryption helpers)
+     └─ Files: index.html (lines ~1319-1333, ~1495-1530)
+
+KEY PLANNING DECISIONS
+----------------------
+1. Parallel Waves: Both plans execute in Wave 1 with no file conflicts (different line ranges)
+2. PBKDF2 over Argon2: Use native crypto.subtle.deriveBits (no external dependency) with 600,000 iterations (current OWASP standard)
+3. Environment Variable Strategy: Build-time sed injection for single-file app (no runtime env access)
+4. Backward Compatibility: Acceptable to break — users will need to re-set PIN and re-register biometrics (one-time friction)
+5. No Test Infrastructure: Phase 4 focuses on code fixes; Phase 5 adds testing. Manual verification sufficient for security changes.
+
+TASK BREAKDOWN
+--------------
+Plan 04-01 (XSS + Admin Email):
+  Task 1: Replace innerHTML with textContent in renderTransaction()
+    - Location: lines ~2941-2953
+    - Pattern: createElement for each element, textContent for user data
+    - Acceptance: grep finds no innerHTML.*label_name, finds textContent.*label_name
+  
+  Task 2: Replace hardcoded ADMIN_EMAIL with placeholder
+    - Location: line ~1202
+    - Pattern: const ADMIN_EMAIL = 'ADMIN_EMAIL_PLACEHOLDER';
+    - Acceptance: grep finds no hardcoded email, finds placeholder
+
+Plan 04-02 (PIN Hashing + Credential Encryption):
+  Task 1: Upgrade pinHash() to PBKDF2 with salt
+    - Remove old SHA-256 unsalted function (line ~1319)
+    - Add setupPIN() with random salt + PBKDF2 deriveBits
+    - Add verifyPIN() with salt parsing + comparison
+    - Iteration count: 600,000 (OWASP 2025)
+    - Storage format: saltHex:hashHex in localStorage
+    - Acceptance: grep finds PBKDF2, iterations: 600000, no old pinHash
+  
+  Task 2: Add AES-GCM encryption for WebAuthn credentials
+    - Add deriveEncryptionKey() helper (derives from PIN + user ID)
+    - Add encryptCredentialId() with IV + ciphertext (AES-GCM)
+    - Add decryptCredentialId() with backward compat for old format
+    - Update registerBiometric() to encrypt before storage
+    - Update unlockBiometric() to decrypt before use
+    - Storage format: enc:ivHex:ctHex (with prefix for version detection)
+    - Acceptance: grep finds AES-GCM, enc: prefix, encrypt/decrypt helpers
+
+REQUIREMENT COVERAGE
+--------------------
+SEC-01: Label names sanitized in DOM to prevent XSS attacks
+  ✓ Plan 04-01, Task 1
+  ✓ Concrete fix: replace innerHTML with textContent
+  ✓ Verification: grep for unsafe patterns
+
+SEC-02: Admin email moved to environment variable (not hardcoded)
+  ✓ Plan 04-01, Task 2
+  ✓ Concrete fix: replace hardcoded email with ADMIN_EMAIL_PLACEHOLDER
+  ✓ Verification: grep finds no hardcoded email
+
+SEC-03: PIN hashing uses PBKDF2 with salt (not unsalted SHA-256)
+  ✓ Plan 04-02, Task 1
+  ✓ Concrete fix: setupPIN() + verifyPIN() with crypto.subtle.deriveBits
+  ✓ Verification: grep finds PBKDF2, iterations: 600000
+
+SEC-04: WebAuthn credentials encrypted before localStorage storage
+  ✓ Plan 04-02, Task 2
+  ✓ Concrete fix: encryptCredentialId() + decryptCredentialId() with AES-GCM
+  ✓ Verification: grep finds AES-GCM, encrypt/decrypt calls
+
+SCOPE ESTIMATION
+----------------
+Plan 04-01:
+  - Complexity: Low-Medium (string replacement + DOM refactoring)
+  - Files modified: 1 (index.html)
+  - Lines changed: ~50 (renderTransaction function + const line)
+  - Estimated execution time: 20-30 minutes
+
+Plan 04-02:
+  - Complexity: Medium-High (cryptographic functions + refactoring)
+  - Files modified: 1 (index.html)
+  - Lines changed: ~100 (setupPIN + verifyPIN + encrypt/decrypt + wiring)
+  - Estimated execution time: 40-60 minutes
+
+Total phase scope: ~60-90 minutes execution time (well within context budget)
+
+VERIFICATION STRATEGY
+---------------------
+Per Plan:
+  - Automated checks: grep patterns for keywords, no regressions
+  - Manual testing: PIN setup/unlock, biometric register/unlock, label rendering with XSS payload
+  - No new test infrastructure required (manual verification sufficient)
+
+Per Phase:
+  - Run `/gsd:verify-work` to confirm all 4 requirements satisfied
+  - User testing: full auth flow (PIN + biometric), transaction history rendering
+  - Deployment: Vercel environment variables configured before deploy
+
+NEXT STEPS
+----------
+1. Execute Plan 04-01 (XSS + Admin Email)
+   → Command: `/gsd:execute-phase 04 --plan 01`
+   
+2. Execute Plan 04-02 (PIN Hashing + Credentials)
+   → Command: `/gsd:execute-phase 04 --plan 02`
+   
+3. Verify Phase 4 complete
+   → Command: `/gsd:verify-work phase 04`
+   
+4. Proceed to Phase 5: Code Quality & Maintainability
+   → Command: `/gsd:plan-phase 05`
+
+RISK ASSESSMENT
+---------------
+Breaking Changes:
+  ✓ PBKDF2: Old PINs stored in SHA-256 unsalted format will not verify
+    → Mitigation: Users see PIN unlock fail, can re-set PIN on first login
+    → Impact: One-time friction, acceptable for security upgrade
+  
+  ✓ Credential Encryption: Old WebAuthn credentials stored unencrypted will fail decryption
+    → Mitigation: Old format detected (no enc: prefix), user prompted to re-register
+    → Impact: One-time friction, acceptable for security upgrade
+
+Regression Risks:
+  ✓ renderTransaction() refactoring: Test all label rendering paths
+    → Mitigation: Execute plan includes manual test with XSS payload
+  
+  ✓ PIN/biometric flow: New crypto functions must complete without errors
+    → Mitigation: Execute plan includes full flow testing
+
+Code Quality:
+  ✓ Both plans are well-scoped, focused changes
+  ✓ No architectural changes, no large refactoring
+  ✓ Crypto implementations follow OWASP guidance + MDN examples
+  ✓ Backward compatibility handled (graceful fallback for old formats)
+
+Timeline
+--------
+Estimate: 60-90 minutes Claude execution time
+         (40-60 for manual testing/verification)
+         
+Phase 4 completion: Same-session execution feasible
+
+Dependencies: None (Phase 4 independent of prior phases)
+Parallelization: Plans 04-01 and 04-02 can execute in parallel
