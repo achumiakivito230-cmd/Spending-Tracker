@@ -3621,10 +3621,6 @@
       });
     }
 
-    function sumAmounts(txArr) {
-      return txArr.reduce((s,t) => s+parseFloat(t.amount), 0);
-    }
-
     function renderHistory(data, filter) {
       const list=document.getElementById('tx-list');
 
@@ -3636,9 +3632,9 @@
       const filtered = filter ? periodData.filter(t=>t.label_name===filter) : periodData;
 
       // Totals
-      const periodTotal = sumAmounts(periodData);
-      const filteredTotal = sumAmounts(filtered);
-      const allTotal = sumAmounts(data);
+      const periodTotal = periodData.reduce((s,t)=>s+parseFloat(t.amount),0);
+      const filteredTotal = filtered.reduce((s,t)=>s+parseFloat(t.amount),0);
+      const allTotal = data.reduce((s,t)=>s+parseFloat(t.amount),0);
 
       document.getElementById('mt-label').textContent = PERIOD_LABELS[activePeriod];
       document.getElementById('mt-amount').textContent = sym()+fmtNum(filter?filteredTotal:periodTotal);
@@ -3882,7 +3878,7 @@
       const totals = {};
       data.forEach(t => { const k = t.label_name||'Unlabeled'; totals[k] = (totals[k]||0) + parseFloat(t.amount); });
       const sorted = Object.entries(totals).sort((a,b) => b[1]-a[1]);
-      const grand  = sumAmounts(sorted.map(([,v]) => ({amount:v})));
+      const grand  = sorted.reduce((s,[,v]) => s+v, 0);
       const periodLabel = (PERIOD_LABELS[activeChartPeriod]||'This month').toUpperCase();
 
       const size=240, cx=120, cy=120, r=100, hole=55;
