@@ -3161,11 +3161,11 @@
       btn.className='budget-set-btn'; btn.textContent='Set';
       btn.addEventListener('click',async()=>{
         const val=parseFloat(input.value)||null;
-        if (!db) { toast('No DB connection'); row.remove(); return; }
+        if (!db) { toast('No DB connection'); UIModule.closeMenu('budget-input'); return; }
         await db.from('labels').update({budget:val}).eq('id',lbl.id);
         lbl.budget=val;
         localStorage.setItem(labelCacheKey(),JSON.stringify(labels));
-        row.remove();
+        UIModule.closeMenu('budget-input'); // closes menu and removes row via onClose callback
         await loadMonthTotals();
         renderChips();
         toast(val?`Budget set: ${sym()}${val.toFixed(2)}`:'Budget cleared', 'ok');
@@ -3174,9 +3174,9 @@
       chipEl.style.position='relative';
       chipEl.appendChild(row);
       setTimeout(()=>input.focus(),50);
-      setTimeout(()=>document.addEventListener('click',function outside(e){
-        if (!row.contains(e.target)&&e.target!==chipEl){row.remove();document.removeEventListener('click',outside);}
-      }),100);
+      setTimeout(()=>{
+        UIModule.openMenu('budget-input', row, chipEl, ()=>row.remove());
+      },100);
     }
 
     function openLabelActions(lbl, chipEl) {
@@ -3187,24 +3187,24 @@
       const renameBtn = document.createElement('button');
       renameBtn.className = 'label-action-btn';
       renameBtn.textContent = '✏️ Rename';
-      renameBtn.addEventListener('click', () => { menu.remove(); renameLabelPrompt(lbl, chipEl); });
+      renameBtn.addEventListener('click', () => { UIModule.closeMenu('label-actions'); renameLabelPrompt(lbl, chipEl); });
 
       const budgetBtn = document.createElement('button');
       budgetBtn.className = 'label-action-btn';
       budgetBtn.textContent = '💰 Set Budget';
-      budgetBtn.addEventListener('click', () => { menu.remove(); openBudgetInput(lbl, chipEl); });
+      budgetBtn.addEventListener('click', () => { UIModule.closeMenu('label-actions'); openBudgetInput(lbl, chipEl); });
 
       const deleteBtn = document.createElement('button');
       deleteBtn.className = 'label-action-btn danger';
       deleteBtn.textContent = '🗑 Delete';
-      deleteBtn.addEventListener('click', () => { menu.remove(); deleteLabel(lbl); });
+      deleteBtn.addEventListener('click', () => { UIModule.closeMenu('label-actions'); deleteLabel(lbl); });
 
       menu.appendChild(renameBtn); menu.appendChild(budgetBtn); menu.appendChild(deleteBtn);
       chipEl.style.position = 'relative';
       chipEl.appendChild(menu);
-      setTimeout(() => document.addEventListener('click', function outside(e) {
-        if (!menu.contains(e.target) && e.target !== chipEl) { menu.remove(); document.removeEventListener('click', outside); }
-      }), 100);
+      setTimeout(() => {
+        UIModule.openMenu('label-actions', menu, chipEl, () => menu.remove());
+      }, 100);
     }
 
     function renameLabelPrompt(lbl, chipEl) {
@@ -3217,12 +3217,12 @@
       btn.className = 'budget-set-btn'; btn.textContent = 'Save';
       btn.addEventListener('click', async () => {
         const newName = input.value.trim();
-        if (!newName || newName === lbl.name) { row.remove(); return; }
+        if (!newName || newName === lbl.name) { UIModule.closeMenu('rename-input'); return; }
         const { error } = await db.from('labels').update({ name: newName }).eq('id', lbl.id);
         if (error) { logError('renameLabelPrompt', error); errorToast(error, 'Could not rename label'); return; }
         lbl.name = newName;
         localStorage.setItem(labelCacheKey(), JSON.stringify(labels));
-        row.remove();
+        UIModule.closeMenu('rename-input'); // closes menu and removes row via onClose callback
         renderChips();
         toast('Label renamed', 'ok');
       });
@@ -3230,9 +3230,9 @@
       chipEl.style.position = 'relative';
       chipEl.appendChild(row);
       setTimeout(() => input.focus(), 50);
-      setTimeout(() => document.addEventListener('click', function outside(e) {
-        if (!row.contains(e.target) && e.target !== chipEl) { row.remove(); document.removeEventListener('click', outside); }
-      }), 100);
+      setTimeout(() => {
+        UIModule.openMenu('rename-input', row, chipEl, () => row.remove());
+      }, 100);
     }
 
     async function deleteLabel(lbl) {
