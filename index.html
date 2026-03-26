@@ -2184,8 +2184,7 @@
 
       errEl.textContent = '';
       if (!email || !pass) { errEl.textContent = 'Enter email and password.'; return; }
-      if (!db) { errEl.textContent = 'Database not connected.'; console.error('DB not initialized'); return; }
-      console.log('Auth attempt:', authMode, 'email:', email);
+      if (!db) { errEl.textContent = 'Database not connected.'; return; }
 
       btn.disabled = true;
       btn.innerHTML = '<span class="spin" style="border-top-color:#09090C;width:18px;height:18px"></span>';
@@ -2200,17 +2199,13 @@
       );
 
       try {
-        console.log('Starting auth request...');
         result = await Promise.race([authPromise, timeoutPromise]);
-        console.log('Auth result:', result);
       } catch (err) {
-        console.error('Auth error:', err);
         result = err || { error: { message: 'An error occurred. Please try again.' } };
       }
 
       btn.disabled = false;
       btn.textContent = authMode === 'signin' ? 'Sign in' : 'Create account';
-      console.log('Button re-enabled. Result error?', result?.error);
 
       if (result.error) {
         errEl.textContent = result.error.message;
