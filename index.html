@@ -1515,6 +1515,68 @@
       }
     }
 
+    // ════════════════════════════════════════════════════════════════
+    // SEC-04: WebAuthn Credential Encryption (AES-GCM)
+    // ════════════════════════════════════════════════════════════════
+
+    async function deriveEncryptionKey(uid) {
+      // Derive encryption key from PIN hash + user ID
+      const pinHash = localStorage.getItem(pinKey());
+      if (!pinHash) return null; // Fallback: PIN not set, can't derive key
+
+      const [, hashPart] = pinHash.split(':');
+      const enc = new TextEncoder();
+      const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(uid + hashPart), 'PBKDF2', false, ['deriveKey']);
+
+      return crypto.subtle.deriveKey(
+        { name: 'PBKDF2', hash: 'SHA-256', salt: new Uint8Array(16), iterations: 100000 },
+        keyMaterial,
+        { name: 'AES-GCM', length: 256 },
+        false,
+        ['encrypt', 'decrypt']
+      );
+    }
+
+    async function encryptCredentialId(credIdBytes, encryptionKey) {
+      if (!encryptionKey) return btoa(String.fromCharCode(...credIdBytes)); // Fallback: unencrypted if no key
+
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const ciphertext = await crypto.subtle.encrypt(
+        { name: 'AES-GCM', iv },
+        encryptionKey,
+        credIdBytes
+      );
+
+      const ivHex = Array.from(iv).map(b => b.toString(16).padStart(2,'0')).join('');
+      const ctHex = Array.from(new Uint8Array(ciphertext)).map(b => b.toString(16).padStart(2,'0')).join('');
+      return `enc:${ivHex}:${ctHex}`; // Prefix "enc:" to distinguish from unencrypted
+    }
+
+    async function decryptCredentialId(stored, encryptionKey) {
+      if (!stored.startsWith('enc:')) {
+        // Fallback: old unencrypted format (Base64)
+        return new Uint8Array(Uint8Array.from(atob(stored), c => c.charCodeAt(0)));
+      }
+
+      if (!encryptionKey) return null;
+
+      const [, ivHex, ctHex] = stored.split(':');
+      const iv = new Uint8Array(ivHex.match(/.{1,2}/g).map(b => parseInt(b, 16)));
+      const ciphertext = new Uint8Array(ctHex.match(/.{1,2}/g).map(b => parseInt(b, 16)));
+
+      try {
+        const plaintext = await crypto.subtle.decrypt(
+          { name: 'AES-GCM', iv },
+          encryptionKey,
+          ciphertext
+        );
+        return new Uint8Array(plaintext);
+      } catch (e) {
+        console.error('Credential decryption failed:', e);
+        return null;
+      }
+    }
+
     // ── WebAuthn Biometrics ──
     async function registerBiometric() {
       try {
@@ -1531,9 +1593,11 @@
             timeout: 60000,
           }
         });
-        const credId = btoa(String.fromCharCode(...new Uint8Array(cred.rawId)));
+        const uid = currentUser?.id || cachedSession?.user?.id || 'anon';
+        const encKey = await deriveEncryptionKey(uid);
+        const encryptedCredId = await encryptCredentialId(new Uint8Array(cred.rawId), encKey);
         localStorage.setItem(bioKey(), '1');
-        localStorage.setItem(bioCredKey(), credId);
+        localStorage.setItem(bioCredKey(), encryptedCredId);
         toast('Biometrics enabled!', 'ok');
         closePinSheet();
       } catch(e) {
@@ -1546,7 +1610,10 @@
       try {
         const credIdStr = localStorage.getItem(bioCredKey());
         if (!credIdStr) return false;
-        const credIdBytes = Uint8Array.from(atob(credIdStr), c => c.charCodeAt(0));
+        const uid = currentUser?.id || cachedSession?.user?.id || 'anon';
+        const encKey = await deriveEncryptionKey(uid);
+        const credIdBytes = await decryptCredentialId(credIdStr, encKey);
+        if (!credIdBytes) { toast('Credential retrieval failed', 'err'); return false; }
         const challenge = crypto.getRandomValues(new Uint8Array(32));
         await navigator.credentials.get({
           publicKey: {
