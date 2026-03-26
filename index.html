@@ -3380,6 +3380,7 @@
       btn.addEventListener('click', async () => {
         const newName = input.value.trim();
         if (!newName || newName === lbl.name) { UIModule.closeMenu('rename-input'); return; }
+        if (newName.length > 32) { toast('Label name too long (max 32 chars)'); return; }
         if (!db) { toast('No DB connection'); return; }
 
         btn.disabled = true;
@@ -3451,15 +3452,20 @@
           const save = async () => {
             const newName = input.value.trim();
             if (newName && newName !== lbl.name) {
-              const { error } = await db.from('labels').update({ name: newName }).eq('id', lbl.id);
-              if (!error) {
-                lbl.name = newName;
-                DataModule.setLabels(labels);  // ← SYNC to DataModule!
-                localStorage.setItem(labelCacheKey(), JSON.stringify(labels));
-                toast('Renamed', 'ok');
-              } else {
-                logError('renderManageLabels/rename', error);
-                errorToast(error, 'Could not rename label');
+              try {
+                const { error } = await withTimeout(db.from('labels').update({ name: newName }).eq('id', lbl.id), 10000);
+                if (!error) {
+                  lbl.name = newName;
+                  DataModule.setLabels(labels);  // ← SYNC to DataModule!
+                  localStorage.setItem(labelCacheKey(), JSON.stringify(labels));
+                  toast('Renamed', 'ok');
+                } else {
+                  logError('renderManageLabels/rename', error);
+                  errorToast(error, 'Could not rename label');
+                }
+              } catch (err) {
+                logError('renderManageLabels/rename', err);
+                errorToast(err, 'Could not rename label');
               }
             }
             row.replaceChild(name, input);
@@ -3481,13 +3487,20 @@
         delBtn.addEventListener('click', async () => {
           if (delBtn.disabled) return; // Safety guard — button may be reenabled mid-session
           if (!confirm(`Delete "${lbl.name}"?`)) return;
-          const { error } = await db.from('labels').delete().eq('id', lbl.id);
-          if (error) { logError('renderManageLabels/delete', error); errorToast(error, 'Could not delete label'); return; }
-          labels = labels.filter(l => l.id !== lbl.id); DataModule.setLabels(labels);
-          localStorage.setItem(labelCacheKey(), JSON.stringify(labels));
-          row.remove();
-          if (!labels.length) list.innerHTML = '<div class="chips-empty">No labels yet — add one above ↑</div>';
-          toast('Deleted', 'ok');
+          delBtn.disabled = true;
+          try {
+            const { error } = await withTimeout(db.from('labels').delete().eq('id', lbl.id), 10000);
+            if (error) { logError('renderManageLabels/delete', error); errorToast(error, 'Could not delete label'); return; }
+            labels = labels.filter(l => l.id !== lbl.id); DataModule.setLabels(labels);
+            localStorage.setItem(labelCacheKey(), JSON.stringify(labels));
+            row.remove();
+            if (!labels.length) list.innerHTML = '<div class="chips-empty">No labels yet — add one above ↑</div>';
+            toast('Deleted', 'ok');
+          } catch (err) {
+            logError('renderManageLabels/delete', err);
+            errorToast(err, 'Could not delete label');
+            delBtn.disabled = false;
+          }
         });
 
         row.appendChild(dot); row.appendChild(name); row.appendChild(editBtn); row.appendChild(delBtn);
@@ -3504,7 +3517,8 @@
 
     async function addLabel(name) {
       name=name.trim();
-      if (!name) return;
+      if (!name) { toast('Label name required'); return; }
+      if (name.length > 32) { toast('Label name too long (max 32 chars)'); return; }
       if (labels.find(l=>l.name.toLowerCase()===name.toLowerCase())) { toast('Label already exists'); return; }
       if (!db) { toast('Add Supabase credentials first'); return; }
       const payload = {name};
