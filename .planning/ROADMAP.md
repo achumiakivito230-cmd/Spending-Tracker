@@ -98,7 +98,7 @@ Plans:
 
 **Requirements:** QUAL-01, QUAL-02, QUAL-03, QUAL-04
 
-**Plans:** 3/3 plans complete
+**Plans:** 4/4 plans complete
 
 Plans:
 - [ ] 05-01-PLAN.md — DataModule factory: encapsulate data layer (loadLabels, loadHistory, loadMonthTotals) *(QUAL-01)*
