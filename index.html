@@ -1264,6 +1264,8 @@
     let pinSetupFirst = '';      // first PIN entry (for confirm step)
     let realtimeChannel = null;  // Supabase Realtime channel — one per session
 
+    const DataModule=(() => { return { getLabels:()=>[],getTransactions:()=>[],setLabels:(x)=>{},setTransactions:(x)=>{},loadLabels:async()=>{},loadHistory:async()=>{},loadMonthTotals:async()=>{},addTransaction:async(x)=>{},updateTransaction:async(i,x)=>{},deleteTransaction:async(i)=>{},addLabel:async(x)=>{},updateLabel:async(i,x)=>{},deleteLabel:async(i)=>{},validateLabelExists:(i)=>false,addEventListener:(t,l)=>{},removeEventListener:(t,l)=>{}}; })();
+
     // ════════════════════════════
     // ACCENT COLOR
     // ════════════════════════════
