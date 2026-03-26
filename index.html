@@ -3579,6 +3579,15 @@
       const amt=parseFloat(document.getElementById('modal-amt').value)||0;
       if (amt<=0) { toast('Enter a valid amount'); return; }
       if (!db) { toast('No DB connection'); return; }
+
+      // QUAL-03: Validate label still exists before saving (guards against label deleted while modal open)
+      if (editLabel && editLabel.id) {
+        if (!DataModule.validateLabelExists(editLabel.id)) {
+          toast('Label was deleted, saving as unlabeled');
+          editLabel = null;
+        }
+      }
+
       const btn=document.getElementById('modal-save');
       btn.innerHTML='<span class="spin" style="border-top-color:#09090C"></span>';
       // Conflict detection: check if another device edited this expense since modal opened
@@ -3593,11 +3602,13 @@
           toast('Note: this expense was edited on another device. Saving your version.');
         }
       }
-      const {error}=await db.from('expenses').update({amount:amt, label_id:editLabel.id, label_name:editLabel.name}).eq('id',editTx.id);
+      const labelId = editLabel ? editLabel.id : null;
+      const labelName = editLabel ? editLabel.name : null;
+      const {error}=await db.from('expenses').update({amount:amt, label_id:labelId, label_name:labelName}).eq('id',editTx.id);
       btn.innerHTML='Save';
       if (error) { logError('saveEdit', error); errorToast(error, 'Could not save changes — try again'); return; }
       const idx=allTxData.findIndex(t=>t.id===editTx.id);
-      if (idx>=0) { allTxData[idx]={...allTxData[idx],amount:amt,label_id:editLabel.id,label_name:editLabel.name}; }
+      if (idx>=0) { allTxData[idx]={...allTxData[idx],amount:amt,label_id:labelId,label_name:labelName}; }
       closeEditModal();
       renderFilterChips(allTxData);
       renderHistory(allTxData, activeFilter);
