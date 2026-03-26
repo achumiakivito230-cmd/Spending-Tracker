@@ -1183,6 +1183,16 @@
     let db = null;
     try { db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY); } catch(e) {}
 
+    // Helper: Wrap any promise with a timeout
+    function withTimeout(promise, ms = 10000) {
+      return Promise.race([
+        promise,
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error(`Request timed out after ${ms}ms`)), ms)
+        )
+      ]);
+    }
+
     // ── ADMIN CONFIG ──
     // To enable admin panel, set this to your login email.
     // Also run this SQL in Supabase Dashboard → SQL Editor:
@@ -1318,7 +1328,7 @@
               toast('User not authenticated');
               return _labels;
             }
-            const { data, error } = await db.from('labels').select('*').eq('user_id', currentUser.id);
+            const { data, error } = await withTimeout(db.from('labels').select('*').eq('user_id', currentUser.id), 10000);
             if (error) throw error;
             setLabels(data || []);
             _emit('labels-updated', _labels);
@@ -1345,11 +1355,11 @@
               toast('User not authenticated');
               return _allTxData;
             }
-            const { data, error } = await db.from('expenses')
+            const { data, error } = await withTimeout(db.from('expenses')
               .select('*')
               .eq('user_id', currentUser.id)
               .order('created_at', { ascending: false })
-              .limit(200);
+              .limit(200), 10000);
             if (error) throw error;
             setTransactions(data || []);
             _emit('data-changed', { type: 'transactions', data: _allTxData });
@@ -1373,9 +1383,9 @@
             toast('User not authenticated');
             return [];
           }
-          const { data, error } = await db.from('expenses')
+          const { data, error } = await withTimeout(db.from('expenses')
             .select('amount, label_id, created_at')
-            .eq('user_id', currentUser.id);
+            .eq('user_id', currentUser.id), 10000);
           if (error) throw error;
           setTransactions(data || []);
           return data || [];
@@ -1389,7 +1399,7 @@
       // Add transaction
       async function addTransaction(tx) {
         try {
-          const { data, error } = await db.from('expenses').insert([tx]).select();
+          const { data, error } = await withTimeout(db.from('expenses').insert([tx]).select(), 10000);
           if (error) throw error;
           if (data && data[0]) {
             _allTxData.push(data[0]);
@@ -1406,10 +1416,10 @@
       // Update transaction
       async function updateTransaction(txId, updates) {
         try {
-          const { data, error } = await db.from('expenses')
+          const { data, error } = await withTimeout(db.from('expenses')
             .update(updates)
             .eq('id', txId)
-            .select();
+            .select(), 10000);
           if (error) throw error;
           if (data && data[0]) {
             const idx = _allTxData.findIndex(tx => tx.id === txId);
@@ -1429,7 +1439,7 @@
       // Delete transaction
       async function deleteTransaction(txId) {
         try {
-          const { error } = await db.from('expenses').delete().eq('id', txId);
+          const { error } = await withTimeout(db.from('expenses').delete().eq('id', txId), 10000);
           if (error) throw error;
           _allTxData = _allTxData.filter(tx => tx.id !== txId);
           _emit('data-changed', { type: 'transaction-deleted', txId });
@@ -1444,7 +1454,7 @@
       // Add label
       async function addLabel(label) {
         try {
-          const { data, error } = await db.from('labels').insert([label]).select();
+          const { data, error } = await withTimeout(db.from('labels').insert([label]).select(), 10000);
           if (error) throw error;
           if (data && data[0]) {
             _labels.push(data[0]);
@@ -1462,10 +1472,10 @@
       // Update label
       async function updateLabel(labelId, updates) {
         try {
-          const { data, error } = await db.from('labels')
+          const { data, error } = await withTimeout(db.from('labels')
             .update(updates)
             .eq('id', labelId)
-            .select();
+            .select(), 10000);
           if (error) throw error;
           if (data && data[0]) {
             const idx = _labels.findIndex(l => l.id === labelId);
@@ -1486,7 +1496,7 @@
       // Delete label
       async function deleteLabel(labelId) {
         try {
-          const { error } = await db.from('labels').delete().eq('id', labelId);
+          const { error } = await withTimeout(db.from('labels').delete().eq('id', labelId), 10000);
           if (error) throw error;
           _labels = _labels.filter(l => l.id !== labelId);
           setLabels(_labels);
@@ -3307,7 +3317,7 @@
 
         btn.disabled = true;
         try {
-          const { error } = await db.from('labels').update({ name: newName }).eq('id', lbl.id);
+          const { error } = await withTimeout(db.from('labels').update({ name: newName }).eq('id', lbl.id), 10000);
           if (error) { logError('renameLabelPrompt', error); errorToast(error, 'Could not rename label'); return; }
 
           lbl.name = newName;
@@ -3432,7 +3442,7 @@
       if (!db) { toast('Add Supabase credentials first'); return; }
       const payload = {name};
       if (currentUser) payload.user_id = currentUser.id;
-      const {data,error}=await db.from('labels').insert(payload).select().single();
+      const {data,error}=await withTimeout(db.from('labels').insert(payload).select().single(), 10000);
       if (error || !data) { logError('addLabel', error); errorToast(error, 'Could not add label'); return; }
       labels.unshift(data); DataModule.setLabels(labels);
       localStorage.setItem(labelCacheKey(),JSON.stringify(labels));
@@ -3461,7 +3471,7 @@
         if (!db) { toast('Add Supabase credentials first'); return; }
         const payload = { amount:parseAmt(raw), label_id:picked.id, label_name:picked.name };
         if (currentUser) payload.user_id = currentUser.id;
-        const {error}=await db.from('expenses').insert(payload);
+        const {error}=await withTimeout(db.from('expenses').insert(payload), 10000);
         if (error) { logError('saveExpense', error); errorToast(error, 'Could not save — try again'); return; }
 
         toast('Saved!','ok');
@@ -3655,7 +3665,7 @@
       try {
         await new Promise(resolve => setTimeout(resolve, 200));
 
-        const {error}=await db.from('expenses').delete().eq('id',id);
+        const {error}=await withTimeout(db.from('expenses').delete().eq('id',id), 10000);
         if (error) {
           logError('deleteExpense', error);
           errorToast(error, 'Could not delete — try again');
@@ -3737,11 +3747,11 @@
       try {
         // Conflict detection: check if another device edited this expense since modal opened
         if (editTx._capturedAt) {
-          const { data: current } = await db
+          const { data: current } = await withTimeout(db
             .from('expenses')
             .select('updated_at')
             .eq('id', editTx.id)
-            .single();
+            .single(), 10000);
           if (current && current.updated_at !== editTx._capturedAt) {
             // Conflict detected — inform user but proceed with save (last-write-wins)
             toast('Note: this expense was edited on another device. Saving your version.');
@@ -3749,7 +3759,7 @@
         }
         const labelId = editLabel ? editLabel.id : null;
         const labelName = editLabel ? editLabel.name : null;
-        const {error}=await db.from('expenses').update({amount:amt, label_id:labelId, label_name:labelName}).eq('id',editTx.id);
+        const {error}=await withTimeout(db.from('expenses').update({amount:amt, label_id:labelId, label_name:labelName}).eq('id',editTx.id), 10000);
         if (error) { logError('saveEdit', error); errorToast(error, 'Could not save changes — try again'); return; }
 
         const idx=allTxData.findIndex(t=>t.id===editTx.id);
