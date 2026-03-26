@@ -1201,6 +1201,16 @@
       return div.innerHTML;
     }
 
+    // Helper: Convert Uint8Array to hex string
+    function toHex(uint8arr) {
+      return Array.from(uint8arr).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    // Helper: Convert hex string to Uint8Array
+    function fromHex(hexStr) {
+      return new Uint8Array(hexStr.match(/.{1,2}/g).map(b => parseInt(b, 16)));
+    }
+
     // ── ADMIN CONFIG ──
     // To enable admin panel, set this to your login email.
     // Also run this SQL in Supabase Dashboard → SQL Editor:
@@ -1765,7 +1775,7 @@
         256
       );
 
-      const computedHash = Array.from(new Uint8Array(bits)).map(b => b.toString(16).padStart(2,'0')).join('');
+      const computedHash = toHex(new Uint8Array(bits));
       return computedHash === storedHash;
     }
 
@@ -1780,8 +1790,8 @@
         256
       );
 
-      const saltHex = Array.from(salt).map(b => b.toString(16).padStart(2,'0')).join('');
-      const hashHex = Array.from(new Uint8Array(bits)).map(b => b.toString(16).padStart(2,'0')).join('');
+      const saltHex = toHex(salt);
+      const hashHex = toHex(new Uint8Array(bits));
       const combined = `${saltHex}:${hashHex}`;
       localStorage.setItem(pinKey(), combined);
     }
@@ -2001,8 +2011,8 @@
         credIdBytes
       );
 
-      const ivHex = Array.from(iv).map(b => b.toString(16).padStart(2,'0')).join('');
-      const ctHex = Array.from(new Uint8Array(ciphertext)).map(b => b.toString(16).padStart(2,'0')).join('');
+      const ivHex = toHex(iv);
+      const ctHex = toHex(new Uint8Array(ciphertext));
       return `enc:${ivHex}:${ctHex}`; // Prefix "enc:" to distinguish from unencrypted
     }
 
