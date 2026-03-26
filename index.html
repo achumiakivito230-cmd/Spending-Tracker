@@ -2595,8 +2595,9 @@
       const { data, error } = await db.from('expenses').select('label_name,amount').gte('created_at', monthStart());
       if (error) { logError('loadMonthTotals', error); return; }
       if (!data) return;
-      monthTotals={};
-      data.forEach(r=>{ monthTotals[r.label_name]=(monthTotals[r.label_name]||0)+parseFloat(r.amount); });
+      const totals={};
+      data.forEach(r=>{ totals[r.label_name]=(totals[r.label_name]||0)+parseFloat(r.amount); });
+      monthTotals=totals;
     }
 
     function renderChips() {
