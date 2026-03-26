@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: milestone
 status: unknown
-last_updated: "2026-03-25T22:04:20.152Z"
+last_updated: "2026-03-26T03:04:48.011Z"
 progress:
   total_phases: 5
-  completed_phases: 2
-  total_plans: 5
-  completed_plans: 5
+  completed_phases: 3
+  total_plans: 7
+  completed_plans: 7
 ---
 
 # Project State: Spend Tracker Stability & Maintainability
@@ -21,7 +21,7 @@ See: `.planning/PROJECT.md` (Spend Tracker: Stability & Maintainability)
 
 **Core Value:** Users have reliable, consistent expense data they can trust across devices. The codebase is maintainable for future work.
 
-**Current Focus:** Phase 3 — State Management (Phase 2 complete; Phase 3 Plan 01 complete)
+**Current Focus:** Phase 4 — Security Fixes (Phase 3 complete: all STATE requirements satisfied)
 
 ## Accumulated Context
 
@@ -31,11 +31,11 @@ See: `.planning/PROJECT.md` (Spend Tracker: Stability & Maintainability)
 |-------|------|--------|
 | 1 | Data Synchronization | Complete (all 3 plans done: SYNC-01, SYNC-02, SYNC-03, SYNC-04) |
 | 2 | Error Handling & Logging | Complete |
-| 3 | State Management | In Progress (Plan 01 complete: STATE-01, STATE-02) |
+| 3 | State Management | Complete (all 2 plans done: STATE-01, STATE-02, STATE-03, STATE-04) |
 | 4 | Security Fixes | Pending |
 | 5 | Code Quality | Pending |
 
-**Overall:** 2/5 phases complete (Phase 3 in progress)
+**Overall:** 3/5 phases complete (Phase 4 pending)
 
 ### Pending Todos
 
@@ -102,11 +102,13 @@ See: `.planning/config.json`
 - [Phase 03-state-management]: Promise-slot dedup via _labelsLoading null slot: concurrent loadLabels() calls return the same in-flight promise rather than spawning two Supabase fetches
 - [Phase 03-state-management]: Array.isArray guard placed immediately before allTxData=data in loadHistory() success path — existing error path already handles null, guard is defense-in-depth
 - [Phase 03-state-management]: Local accumulator (const totals={}) in loadMonthTotals() ensures monthTotals is never observable in a zeroed or partially-filled state during accumulation
+- [Phase 03-state-management]: currentUser null guard inserted after name-empty check in btn-ml-add, not at handler top — preserves logical input-first auth-second ordering
+- [Phase 03-state-management]: loadHistory shell uses try/finally to clear _historyLoading slot even if _doLoadHistory throws — mirrors Plan 01 pattern for _labelsLoading
+- [Phase 03-state-management]: screen !== targetScreen guard in _doLoadHistory sits after await and before all DOM/state mutations — prevents stale writes on rapid tab navigation (STATE-04)
 
 ## Next Steps
 
-1. **Phase 3 Plan 02:** State Management — STATE-03/STATE-04 fixes (optimistic-update rollback and Realtime event dedup)
-2. **Phase 4:** Security Fixes — after Phase 3 complete
+1. **Phase 4:** Security Fixes — XSS in label rendering, PIN hashing, admin email env var, CSRF/CORS
 
 ---
 
@@ -116,6 +118,6 @@ See: `.planning/config.json`
 - Focus: Stability, reliability, maintainability (no new features)
 - Architecture: Will modularize from single file
 - User preference: YOLO mode (trust Claude's decisions)
-- **Last session:** 2026-03-25T22:01:37.718Z
+- **Last session:** 2026-03-26T03:04:48.009Z
 - **Last session:** 2026-03-26 — Executed 01-03-PLAN.md (conflict detection in saveEdit() + setupConnectivityWatch() — SYNC-02 and SYNC-03 complete)
 - **Last session:** 2026-03-26 — Executed 03-01-PLAN.md (promise-slot dedup, Array.isArray guards, local accumulator — STATE-01, STATE-02 complete)
