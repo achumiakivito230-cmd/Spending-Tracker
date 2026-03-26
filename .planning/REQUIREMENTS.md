@@ -38,7 +38,7 @@
 - [ ] **QUAL-01**: Codebase modularized into separate, testable functions
 - [ ] **QUAL-02**: Floating menu listeners properly cleaned up on close
 - [ ] **QUAL-03**: Edit modal validates labels before saving
-- [ ] **QUAL-04**: Chart rendering memoized to prevent performance jank
+- [x] **QUAL-04**: Chart rendering memoized to prevent performance jank
 
 ## v2 Requirements
 
@@ -92,7 +92,7 @@
 | QUAL-01 | Phase 5 | Pending |
 | QUAL-02 | Phase 5 | Pending |
 | QUAL-03 | Phase 5 | Pending |
-| QUAL-04 | Phase 5 | Pending |
+| QUAL-04 | Phase 5 | Complete |
 
 **Coverage:**
 - v1 requirements: 20 total
