@@ -3197,7 +3197,17 @@
       const deleteBtn = document.createElement('button');
       deleteBtn.className = 'label-action-btn danger';
       deleteBtn.textContent = '🗑 Delete';
-      deleteBtn.addEventListener('click', () => { UIModule.closeMenu('label-actions'); deleteLabel(lbl); });
+      // QUAL-03: Disable delete if label is currently being edited in the edit modal
+      if (editLabel && editLabel.id === lbl.id) {
+        deleteBtn.disabled = true;
+        deleteBtn.title = 'Cannot delete label while editing';
+        deleteBtn.style.opacity = '0.35';
+        deleteBtn.style.cursor = 'not-allowed';
+      }
+      deleteBtn.addEventListener('click', () => {
+        if (deleteBtn.disabled) return;
+        UIModule.closeMenu('label-actions'); deleteLabel(lbl);
+      });
 
       menu.appendChild(renameBtn); menu.appendChild(budgetBtn); menu.appendChild(deleteBtn);
       chipEl.style.position = 'relative';
@@ -3291,7 +3301,15 @@
         });
 
         const delBtn = document.createElement('button'); delBtn.className = 'ml-action danger'; delBtn.title = 'Delete'; delBtn.innerHTML = '🗑';
+        // QUAL-03: Disable delete if this label is currently being edited in the edit modal
+        if (editLabel && editLabel.id === lbl.id) {
+          delBtn.disabled = true;
+          delBtn.title = 'Cannot delete label while editing';
+          delBtn.style.opacity = '0.35';
+          delBtn.style.cursor = 'not-allowed';
+        }
         delBtn.addEventListener('click', async () => {
+          if (delBtn.disabled) return; // Safety guard — button may be reenabled mid-session
           if (!confirm(`Delete "${lbl.name}"?`)) return;
           const { error } = await db.from('labels').delete().eq('id', lbl.id);
           if (error) { logError('renderManageLabels/delete', error); errorToast(error, 'Could not delete label'); return; }
