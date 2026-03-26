@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: milestone
 status: unknown
-last_updated: "2026-03-26T06:47:34.711Z"
+last_updated: "2026-03-26T06:50:07.978Z"
 progress:
   total_phases: 5
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 13
-  completed_plans: 12
+  completed_plans: 13
 ---
 
 # Project State: Spend Tracker Stability & Maintainability
@@ -112,6 +112,8 @@ See: `.planning/config.json`
 - [Phase 04-security-fixes]: WebAuthn credential IDs encrypted with AES-GCM before localStorage storage; key derived from PIN hash + user ID (SEC-04)
 - [Phase 04-security-fixes]: Backward-incompatible security upgrades — users must re-set PINs and re-register biometrics after deploy (acceptable one-time friction)
 - [Phase 05-code-quality-maintainability]: ChartModule cache key includes chartType alongside period and data hash — type-switch always triggers rebuild
+- [Phase 05-code-quality-maintainability]: UIModule.openMenu() uses onClose callback pattern — caller passes () => element.remove(), keeping UIModule decoupled from specific menu DOM structures
+- [Phase 05-code-quality-maintainability]: Defense in depth for label deletion conflict: Layer 1 (disabled delete button when label being edited) + Layer 2 (validateLabelExists in saveEdit clears orphaned label and saves as unlabeled)
 
 ## Next Steps
 
@@ -125,7 +127,7 @@ See: `.planning/config.json`
 - Focus: Stability, reliability, maintainability (no new features)
 - Architecture: Will modularize from single file
 - User preference: YOLO mode (trust Claude's decisions)
-- **Last session:** 2026-03-26T06:47:34.709Z
+- **Last session:** 2026-03-26T06:50:07.976Z
 - **Last session:** 2026-03-26 — Executed 01-03-PLAN.md (conflict detection in saveEdit() + setupConnectivityWatch() — SYNC-02 and SYNC-03 complete)
 - **Last session:** 2026-03-26 — Executed 03-01-PLAN.md (promise-slot dedup, Array.isArray guards, local accumulator — STATE-01, STATE-02 complete)
 - **Last session:** 2026-03-26 — Executed 04-01-PLAN.md (XSS prevention + admin email env var placeholder — SEC-01 and SEC-02 complete)
