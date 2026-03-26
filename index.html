@@ -1225,7 +1225,7 @@
       renderCurrencyChips();
       // Re-render history if on that screen
       if (screen === 'history') renderHistory(allTxData, activeFilter);
-      if (screen === 'chart') renderChart();
+      if (screen === 'chart') ChartModule.render(allTxData, activeChartPeriod, activeChartType);
     }
 
     function renderCurrencyChips() {
@@ -1508,6 +1508,155 @@
         validateLabelExists,
         addEventListener,
         removeEventListener
+      };
+    })();
+
+    // ════════════════════════════
+    // CHART MODULE
+    // ════════════════════════════
+    const ChartModule = (() => {
+      // Private memoization cache
+      let cachedChartState = null; // { hash, period, chartType }
+      let cachedHTML = null;       // cached rendered innerHTML of chart-body
+
+      // Compute deterministic hash of current chart inputs
+      function computeDataHash(data, period, chartType) {
+        const str = JSON.stringify({
+          txCount: data.length,
+          dataHash: data.map(tx => `${tx.id}-${tx.amount}-${tx.label_name||''}`).join('|'),
+          period,
+          chartType
+        });
+        return str;
+      }
+
+      // Check if cache is still valid for given inputs
+      function isCacheValid(data, period, chartType) {
+        if (!cachedChartState || cachedHTML === null) return false;
+        const currentHash = computeDataHash(data, period, chartType);
+        return cachedChartState.hash === currentHash;
+      }
+
+      // Invalidate cache (called when data changes)
+      function invalidateCache() {
+        cachedChartState = null;
+        cachedHTML = null;
+      }
+
+      // Build chart HTML by delegating to existing render functions
+      // Returns the innerHTML to set on chart-body
+      function buildChartHTML(data, period, chartType) {
+        const body = document.getElementById('chart-body');
+        body.innerHTML = '';
+        const pStart = periodStart(period);
+        const filtered = pStart ? data.filter(t => t.created_at >= pStart) : data;
+        if (filtered.length === 0) {
+          body.innerHTML = `<div class="chart-empty"><div style="font-size:44px;opacity:.28">📊</div><div style="font-size:14.5px;font-weight:500;color:var(--muted)">No expenses for this period.</div></div>`;
+          return body.innerHTML;
+        }
+        if (chartType === 'donut') renderDonutChart(filtered, body);
+        if (chartType === 'bar')   renderBarChart(filtered, body);
+        if (chartType === 'line')  renderLineChart(filtered, body);
+        return body.innerHTML;
+      }
+
+      // Listen for data changes from DataModule — invalidate cache automatically
+      DataModule.addEventListener('data-changed', () => {
+        invalidateCache();
+      });
+
+      // Public API
+      return {
+        render(data, period, chartType) {
+          if (isCacheValid(data, period, chartType) && cachedHTML !== null) {
+            // Cache hit — reuse cached output
+            document.getElementById('chart-body').innerHTML = cachedHTML;
+            return;
+          }
+
+          // Cache miss — build new chart and cache result
+          buildChartHTML(data, period, chartType);
+          const hash = computeDataHash(data, period, chartType);
+          cachedChartState = { hash, period, chartType };
+          cachedHTML = document.getElementById('chart-body').innerHTML;
+        },
+
+        invalidateCache() {
+          invalidateCache();
+        }
+      };
+    })();
+
+    // ════════════════════════════
+    // UI MODULE — menu state & click-outside delegation
+    // ════════════════════════════
+    const UIModule = (() => {
+      let menuStack = [];           // Stack of { name, element, anchor, onClose } for open menus
+      let clickOutsideListener = null; // Single shared document click listener
+
+      function attachClickOutside() {
+        if (clickOutsideListener) return; // Already attached — avoid duplicate listeners
+
+        clickOutsideListener = function(e) {
+          if (menuStack.length === 0) {
+            document.removeEventListener('click', clickOutsideListener);
+            clickOutsideListener = null;
+            return;
+          }
+
+          const top = menuStack[menuStack.length - 1];
+          // Check if click is outside the top-most open menu element and its anchor
+          const isOutside = !top.element || (!top.element.contains(e.target) && e.target !== top.anchor);
+          if (isOutside) {
+            _closeTop();
+          }
+        };
+
+        document.addEventListener('click', clickOutsideListener);
+      }
+
+      function _closeTop() {
+        const entry = menuStack.pop();
+        if (entry && entry.onClose) entry.onClose();
+        if (menuStack.length === 0 && clickOutsideListener) {
+          document.removeEventListener('click', clickOutsideListener);
+          clickOutsideListener = null;
+        }
+      }
+
+      return {
+        // Register a menu as open; element = the menu DOM node, anchor = trigger element, onClose = callback on close
+        openMenu(name, element, anchor, onClose) {
+          menuStack.push({ name, element, anchor: anchor || null, onClose: onClose || null });
+          attachClickOutside();
+        },
+        // Close the topmost open menu
+        closeTopMenu() {
+          if (menuStack.length > 0) _closeTop();
+        },
+        // Close a specific named menu
+        closeMenu(name) {
+          const idx = menuStack.findIndex(m => m.name === name);
+          if (idx === -1) return;
+          const entry = menuStack.splice(idx, 1)[0];
+          if (entry && entry.onClose) entry.onClose();
+          if (menuStack.length === 0 && clickOutsideListener) {
+            document.removeEventListener('click', clickOutsideListener);
+            clickOutsideListener = null;
+          }
+        },
+        // Check if any menu with this name is currently open
+        isMenuOpen(name) {
+          return menuStack.some(m => m.name === name);
+        },
+        // Get copy of current stack names
+        getMenuStack() {
+          return menuStack.map(m => m.name);
+        },
+        // Close all open menus
+        closeAll() {
+          while (menuStack.length > 0) _closeTop();
+        }
       };
     })();
 
@@ -2198,8 +2347,8 @@
       // Data loading per target
       if (target === 'history') loadHistory();
       if (target === 'chart') {
-        if (allTxData.length === 0) loadHistory().then(() => renderChart());
-        else renderChart();
+        if (allTxData.length === 0) loadHistory().then(() => ChartModule.render(allTxData, activeChartPeriod, activeChartType));
+        else ChartModule.render(allTxData, activeChartPeriod, activeChartType);
       }
       if (target === 'budget') renderBudgetScreen();
       if (target === 'feedback') { fbRating = 1; applyFbState(1); }
@@ -2223,9 +2372,9 @@
       animateShapes();
       updateTabBar();
       if (allTxData.length === 0) {
-        loadHistory().then(() => renderChart());
+        loadHistory().then(() => ChartModule.render(allTxData, activeChartPeriod, activeChartType));
       } else {
-        renderChart();
+        ChartModule.render(allTxData, activeChartPeriod, activeChartType);
       }
     }
 
@@ -2818,7 +2967,7 @@
         toast('Back online \u2014 syncing\u2026');
         loadHistory().then(() => {
           if (screen === 'history') renderHistory(allTxData, activeFilter);
-          if (screen === 'chart')   renderChart();
+          if (screen === 'chart')   ChartModule.render(allTxData, activeChartPeriod, activeChartType);
         });
       });
     }
@@ -2907,7 +3056,7 @@
         renderFilterChips(allTxData);
         renderHistory(allTxData, activeFilter);
       }
-      if (screen === 'chart') renderChart();
+      if (screen === 'chart') ChartModule.render(allTxData, activeChartPeriod, activeChartType);
     }
 
     function handleLabelChange(payload) {
@@ -3458,20 +3607,6 @@
     // ════════════════════════════
     // ANALYTICS CHARTS
     // ════════════════════════════
-    function renderChart() {
-      const body = document.getElementById('chart-body');
-      body.innerHTML = '';
-      const pStart = periodStart(activeChartPeriod);
-      const data   = pStart ? allTxData.filter(t => t.created_at >= pStart) : allTxData;
-      if (data.length === 0) {
-        body.innerHTML = `<div class="chart-empty"><div style="font-size:44px;opacity:.28">📊</div><div style="font-size:14.5px;font-weight:500;color:var(--muted)">No expenses for this period.</div></div>`;
-        return;
-      }
-      if (activeChartType === 'donut') renderDonutChart(data, body);
-      if (activeChartType === 'bar')   renderBarChart(data, body);
-      if (activeChartType === 'line')  renderLineChart(data, body);
-    }
-
     function renderDonutChart(data, body) {
       const totals = {};
       data.forEach(t => { const k = t.label_name||'Unlabeled'; totals[k] = (totals[k]||0) + parseFloat(t.amount); });
@@ -3729,7 +3864,7 @@
       if (!btn) return;
       activeChartPeriod = btn.dataset.cp;
       document.querySelectorAll('#chart-period-tabs .ptab').forEach(b => b.classList.toggle('active', b === btn));
-      if (screen === 'chart') renderChart();
+      if (screen === 'chart') ChartModule.render(allTxData, activeChartPeriod, activeChartType);
     });
 
     // Chart type toggle
@@ -3738,7 +3873,7 @@
       if (!btn) return;
       activeChartType = btn.dataset.ct;
       document.querySelectorAll('.ctab').forEach(b => b.classList.toggle('active', b === btn));
-      renderChart();
+      ChartModule.render(allTxData, activeChartPeriod, activeChartType);
     });
 
     document.getElementById('btn-save').addEventListener('click', saveExpense);
