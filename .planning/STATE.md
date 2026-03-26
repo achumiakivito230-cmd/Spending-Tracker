@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: milestone
 status: in-progress
-last_updated: "2026-03-26T03:15:00.000Z"
+last_updated: "2026-03-26T03:37:47Z"
 progress:
   total_phases: 5
   completed_phases: 3
   total_plans: 8
-  completed_plans: 8
+  completed_plans: 9
 ---
 
 # Project State: Spend Tracker Stability & Maintainability
@@ -32,7 +32,7 @@ See: `.planning/PROJECT.md` (Spend Tracker: Stability & Maintainability)
 | 1 | Data Synchronization | Complete (all 3 plans done: SYNC-01, SYNC-02, SYNC-03, SYNC-04) |
 | 2 | Error Handling & Logging | Complete |
 | 3 | State Management | Complete (all 2 plans done: STATE-01, STATE-02, STATE-03, STATE-04) |
-| 4 | Security Fixes | In Progress (1/3 plans: SEC-01 complete) |
+| 4 | Security Fixes | In Progress (2/3 plans: SEC-01, SEC-03, SEC-04 complete) |
 | 5 | Code Quality | Pending |
 
 **Overall:** 3/5 phases complete (Phase 4 in progress)
@@ -42,9 +42,10 @@ See: `.planning/PROJECT.md` (Spend Tracker: Stability & Maintainability)
 10 prioritized todos captured from codebase analysis:
 
 **Critical (Security):**
-- Fix XSS vulnerability in label rendering
-- Implement proper PIN hashing (Argon2/PBKDF2 + salt)
-- Move hardcoded admin email to env variable
+- ✓ Fix XSS vulnerability in label rendering (SEC-01 complete)
+- ✓ Implement proper PIN hashing (Argon2/PBKDF2 + salt) (SEC-03 complete)
+- ✓ Move hardcoded admin email to env variable (SEC-02 complete)
+- Encrypt WebAuthn credentials before storage (SEC-04 complete)
 
 **Critical (Data Integrity):**
 - Implement real-time Supabase sync
@@ -107,6 +108,9 @@ See: `.planning/config.json`
 - [Phase 03-state-management]: screen !== targetScreen guard in _doLoadHistory sits after await and before all DOM/state mutations — prevents stale writes on rapid tab navigation (STATE-04)
 - [Phase 04-security-fixes]: XSS prevention in transaction rendering via createElement + textContent (SEC-01)
 - [Phase 04-security-fixes]: Admin email moved to environment variable placeholder for build-time injection (SEC-02)
+- [Phase 04-security-fixes]: PIN hashing upgraded to PBKDF2-HMAC-SHA256 with 600,000 iterations and random 16-byte salt (SEC-03)
+- [Phase 04-security-fixes]: WebAuthn credential IDs encrypted with AES-GCM before localStorage storage; key derived from PIN hash + user ID (SEC-04)
+- [Phase 04-security-fixes]: Backward-incompatible security upgrades — users must re-set PINs and re-register biometrics after deploy (acceptable one-time friction)
 
 ## Next Steps
 
@@ -123,4 +127,5 @@ See: `.planning/config.json`
 - **Last session:** 2026-03-26T03:04:48.009Z
 - **Last session:** 2026-03-26 — Executed 01-03-PLAN.md (conflict detection in saveEdit() + setupConnectivityWatch() — SYNC-02 and SYNC-03 complete)
 - **Last session:** 2026-03-26 — Executed 03-01-PLAN.md (promise-slot dedup, Array.isArray guards, local accumulator — STATE-01, STATE-02 complete)
-- **Current session:** 2026-03-26 — Executed 04-01-PLAN.md (XSS prevention + admin email env var placeholder — SEC-01 and SEC-02 complete)
+- **Last session:** 2026-03-26 — Executed 04-01-PLAN.md (XSS prevention + admin email env var placeholder — SEC-01 and SEC-02 complete)
+- **Current session:** 2026-03-26 — Executing 04-02-PLAN.md (PBKDF2 PIN hashing + AES-GCM credential encryption — SEC-03 and SEC-04 complete)
