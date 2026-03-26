@@ -78,10 +78,16 @@ Plans:
 
 **Requirements:** SEC-01, SEC-02, SEC-03, SEC-04
 
+**Plans:** 2/2 plans created
+
+Plans:
+- [ ] 04-01-PLAN.md — XSS fix: replace innerHTML with textContent for label rendering; move admin email to env variable placeholder
+- [ ] 04-02-PLAN.md — PIN hashing: upgrade to PBKDF2 with 600,000 iterations; encrypt WebAuthn credential IDs with AES-GCM
+
 **Success Criteria:**
 1. Label names rendered with `textContent` (XSS vectors blocked)
 2. Admin email read from environment variable, not source code
-3. PIN hash uses Argon2/PBKDF2 with random salt (10,000 attempts take >minutes)
+3. PIN hash uses PBKDF2 with random salt (10,000 attempts take >10 minutes)
 4. WebAuthn credential IDs encrypted before localStorage storage
 
 **Priority:** Critical — protects user data and accounts
@@ -126,7 +132,10 @@ All v1 requirements mapped to exactly one phase:
 
 | Category | Phase | Count | Status |
 |----------|-------|-------|--------|
-| Data Synchronization | 1 | 3/3 | Complete   | 2026-03-25 | Error Handling | 2 | 1/2 | In Progress|  | State Management | 3 | 2/2 | Complete   | 2026-03-26 | Security Fixes | 4 | 4 | Pending |
+| Data Synchronization | 1 | 4/4 | Complete   |
+| Error Handling | 2 | 4/4 | Complete   |
+| State Management | 3 | 4/4 | Complete   |
+| Security Fixes | 4 | 4 | Pending |
 | Code Quality | 5 | 4 | Pending |
 
 **Coverage:** 20/20 requirements mapped ✓
@@ -145,3 +154,4 @@ All v1 requirements mapped to exactly one phase:
 *Roadmap created: 2026-03-26*
 *Phase 1 planned: 2026-03-26*
 *Phase 2 planned: 2026-03-26*
+*Phase 4 planned: 2026-03-26*

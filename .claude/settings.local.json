@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(gsd:add-todo)",
+      "Skill(gsd:plan-phase)",
+      "Skill(gsd:execute-phase)",
+      "mcp__gmail__search_emails",
+      "Skill(update-config)",
+      "Skill(update-config:*)"
+    ]
+  }
+}
