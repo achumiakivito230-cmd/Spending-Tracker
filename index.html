@@ -1264,7 +1264,252 @@
     let pinSetupFirst = '';      // first PIN entry (for confirm step)
     let realtimeChannel = null;  // Supabase Realtime channel — one per session
 
-    const DataModule=(() => { return { getLabels:()=>[],getTransactions:()=>[],setLabels:(x)=>{},setTransactions:(x)=>{},loadLabels:async()=>{},loadHistory:async()=>{},loadMonthTotals:async()=>{},addTransaction:async(x)=>{},updateTransaction:async(i,x)=>{},deleteTransaction:async(i)=>{},addLabel:async(x)=>{},updateLabel:async(i,x)=>{},deleteLabel:async(i)=>{},validateLabelExists:(i)=>false,addEventListener:(t,l)=>{},removeEventListener:(t,l)=>{}}; })();
+    const DataModule = (() => {
+      // Private state — encapsulated, not accessed directly
+      let _allTxData = [];
+      let _labels = [];
+      let _labelsLoading = null;
+      let _historyLoading = null;
+      let _listeners = {}; // event listeners
+
+      // Register event listener
+      function addEventListener(eventType, callback) {
+        if (!_listeners[eventType]) _listeners[eventType] = [];
+        _listeners[eventType].push(callback);
+      }
+
+      // Remove event listener
+      function removeEventListener(eventType, callback) {
+        if (_listeners[eventType]) {
+          _listeners[eventType] = _listeners[eventType].filter(cb => cb !== callback);
+        }
+      }
+
+      // Emit event to all listeners
+      function _emit(eventType, data) {
+        if (_listeners[eventType]) {
+          _listeners[eventType].forEach(cb => cb(data));
+        }
+      }
+
+      // Getters
+      function getLabels() { return [..._labels]; }
+      function getTransactions() { return [..._allTxData]; }
+
+      // Setters
+      function setLabels(newLabels) {
+        _labels = Array.isArray(newLabels) ? newLabels : [];
+        localStorage.setItem(`spend_labels_${currentUser?.id}`, JSON.stringify(_labels));
+      }
+
+      function setTransactions(newTx) {
+        _allTxData = Array.isArray(newTx) ? newTx : [];
+      }
+
+      // Load labels with dedup slot
+      async function loadLabels() {
+        if (_labelsLoading) return _labelsLoading;
+
+        _labelsLoading = (async () => {
+          try {
+            const { data, error } = await db.from('labels').select('*').eq('user_id', currentUser.id);
+            if (error) throw error;
+            setLabels(data || []);
+            _emit('labels-updated', _labels);
+            return _labels;
+          } catch (err) {
+            _emit('cache-error', { action: 'loadLabels', error: err.message });
+            toast('Could not load labels');
+            return _labels;
+          } finally {
+            _labelsLoading = null;
+          }
+        })();
+
+        return _labelsLoading;
+      }
+
+      // Load transaction history
+      async function loadHistory() {
+        if (_historyLoading) return _historyLoading;
+
+        _historyLoading = (async () => {
+          try {
+            const { data, error } = await db.from('expenses')
+              .select('*')
+              .eq('user_id', currentUser.id)
+              .order('created_at', { ascending: false })
+              .limit(200);
+            if (error) throw error;
+            setTransactions(data || []);
+            _emit('data-changed', { type: 'transactions', data: _allTxData });
+            return _allTxData;
+          } catch (err) {
+            _emit('cache-error', { action: 'loadHistory', error: err.message });
+            toast('Could not load transactions');
+            return _allTxData;
+          } finally {
+            _historyLoading = null;
+          }
+        })();
+
+        return _historyLoading;
+      }
+
+      // Load month totals
+      async function loadMonthTotals() {
+        try {
+          const { data, error } = await db.from('expenses')
+            .select('amount, label_id, created_at')
+            .eq('user_id', currentUser.id);
+          if (error) throw error;
+          setTransactions(data || []);
+          return data || [];
+        } catch (err) {
+          _emit('cache-error', { action: 'loadMonthTotals', error: err.message });
+          toast('Could not load month data');
+          return [];
+        }
+      }
+
+      // Add transaction
+      async function addTransaction(tx) {
+        try {
+          const { data, error } = await db.from('expenses').insert([tx]).select();
+          if (error) throw error;
+          if (data && data[0]) {
+            _allTxData.push(data[0]);
+            _emit('data-changed', { type: 'transaction-added', data: data[0] });
+          }
+          return data?.[0];
+        } catch (err) {
+          _emit('cache-error', { action: 'addTransaction', error: err.message });
+          toast('Could not add transaction');
+          return null;
+        }
+      }
+
+      // Update transaction
+      async function updateTransaction(txId, updates) {
+        try {
+          const { data, error } = await db.from('expenses')
+            .update(updates)
+            .eq('id', txId)
+            .select();
+          if (error) throw error;
+          if (data && data[0]) {
+            const idx = _allTxData.findIndex(tx => tx.id === txId);
+            if (idx >= 0) {
+              _allTxData[idx] = { ..._allTxData[idx], ...updates };
+            }
+            _emit('data-changed', { type: 'transaction-updated', data: data[0] });
+          }
+          return data?.[0];
+        } catch (err) {
+          _emit('cache-error', { action: 'updateTransaction', error: err.message });
+          toast('Could not update transaction');
+          return null;
+        }
+      }
+
+      // Delete transaction
+      async function deleteTransaction(txId) {
+        try {
+          const { error } = await db.from('expenses').delete().eq('id', txId);
+          if (error) throw error;
+          _allTxData = _allTxData.filter(tx => tx.id !== txId);
+          _emit('data-changed', { type: 'transaction-deleted', txId });
+          return true;
+        } catch (err) {
+          _emit('cache-error', { action: 'deleteTransaction', error: err.message });
+          toast('Could not delete transaction');
+          return false;
+        }
+      }
+
+      // Add label
+      async function addLabel(label) {
+        try {
+          const { data, error } = await db.from('labels').insert([label]).select();
+          if (error) throw error;
+          if (data && data[0]) {
+            _labels.push(data[0]);
+            setLabels(_labels);
+            _emit('labels-updated', _labels);
+          }
+          return data?.[0];
+        } catch (err) {
+          _emit('cache-error', { action: 'addLabel', error: err.message });
+          toast('Could not add label');
+          return null;
+        }
+      }
+
+      // Update label
+      async function updateLabel(labelId, updates) {
+        try {
+          const { data, error } = await db.from('labels')
+            .update(updates)
+            .eq('id', labelId)
+            .select();
+          if (error) throw error;
+          if (data && data[0]) {
+            const idx = _labels.findIndex(l => l.id === labelId);
+            if (idx >= 0) {
+              _labels[idx] = { ..._labels[idx], ...updates };
+            }
+            setLabels(_labels);
+            _emit('labels-updated', _labels);
+          }
+          return data?.[0];
+        } catch (err) {
+          _emit('cache-error', { action: 'updateLabel', error: err.message });
+          toast('Could not update label');
+          return null;
+        }
+      }
+
+      // Delete label
+      async function deleteLabel(labelId) {
+        try {
+          const { error } = await db.from('labels').delete().eq('id', labelId);
+          if (error) throw error;
+          _labels = _labels.filter(l => l.id !== labelId);
+          setLabels(_labels);
+          _emit('labels-updated', _labels);
+          return true;
+        } catch (err) {
+          _emit('cache-error', { action: 'deleteLabel', error: err.message });
+          toast('Could not delete label');
+          return false;
+        }
+      }
+
+      // Validate label exists
+      function validateLabelExists(labelId) {
+        return _labels.some(l => l.id === labelId);
+      }
+
+      // Public API
+      return {
+        getLabels,
+        getTransactions,
+        setLabels,
+        setTransactions,
+        loadLabels,
+        loadHistory,
+        loadMonthTotals,
+        addTransaction,
+        updateTransaction,
+        deleteTransaction,
+        addLabel,
+        updateLabel,
+        deleteLabel,
+        validateLabelExists,
+        addEventListener,
+        removeEventListener
+      };
+    })();
 
     // ════════════════════════════
     // ACCENT COLOR
