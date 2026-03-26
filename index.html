@@ -2471,7 +2471,15 @@
     // ════════════════════════════
     function labelCacheKey() { return `spend_labels_${currentUser?.id || 'anon'}`; }
 
+    let _labelsLoading = null;
+
     async function loadLabels() {
+      if (_labelsLoading) return _labelsLoading;
+      _labelsLoading = _doLoadLabels();
+      try { await _labelsLoading; } finally { _labelsLoading = null; }
+    }
+
+    async function _doLoadLabels() {
       const cached=localStorage.getItem(labelCacheKey());
       if (cached) try { labels=JSON.parse(cached); } catch {}
       if (!db) return;
@@ -2481,7 +2489,7 @@
         if (!labels.length) toast('Could not load labels — check your connection');
         return;
       }
-      if (data) { labels = data; localStorage.setItem(labelCacheKey(), JSON.stringify(labels)); renderChips(); }
+      if (Array.isArray(data)) { labels = data; localStorage.setItem(labelCacheKey(), JSON.stringify(labels)); renderChips(); }
     }
 
     // ════════════════════════════
