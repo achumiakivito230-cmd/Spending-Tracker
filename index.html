@@ -2293,7 +2293,7 @@
       if (!hasPIN()) setTimeout(showPinSetupSheet, 800);
 
       // Show admin panel button if admin
-      if (currentUser.email === ADMIN_EMAIL) {
+      if (currentUser?.email === ADMIN_EMAIL) {
         const el = document.getElementById('btn-admin-panel');
         if (el) el.style.display = 'block';
       }
