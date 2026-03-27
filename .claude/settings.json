@@ -1,6 +1,0 @@
-{
-  "enabledPlugins": {
-    "ralph-loop@claude-plugins-official": true,
-    "security-guidance@claude-plugins-official": true
-  }
-}

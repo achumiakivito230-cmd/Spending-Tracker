@@ -1851,6 +1851,13 @@
       const initial = (currentUser.email || '?')[0].toUpperCase();
       document.getElementById('btn-profile').textContent = initial;
       document.getElementById('profile-email').textContent = currentUser.email;
+      if (currentUser?.email === ADMIN_EMAIL) {
+        const el = document.getElementById('btn-admin-panel');
+        if (el) el.style.display = 'block';
+      }
+      setupConnectivityWatch();
+      setupRealtimeSync(currentUser.id);
+      setupVisibilityWatch();
     }
 
     // ── Lock screen ──
