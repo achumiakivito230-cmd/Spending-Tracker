@@ -1,24 +1,24 @@
 <html>
 <head>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@500&display=swap" rel="stylesheet">
   <style>
     * { margin:0; padding:0; }
-    body { width:512px; height:512px; background: transparent; }
+    html, body { width:100vw; height:100vh; background: transparent; }
     .icon {
-      width:512px; height:512px;
+      width:100vw; height:100vh;
       background:#0D0D0F;
-      border-radius:116px;
+      border-radius:22%;
       display:flex; align-items:center; justify-content:center;
       position:relative; overflow:hidden;
     }
     .glow {
-      position:absolute; width:340px; height:340px; border-radius:50%;
-      background:radial-gradient(circle, rgba(200,255,0,0.22) 0%, transparent 70%);
+      position:absolute; width:75%; height:75%; border-radius:50%;
+      background:radial-gradient(circle, rgba(200,255,0,0.28) 0%, transparent 70%);
     }
     .symbol {
-      font-family:'DM Mono', monospace; font-size:280px; font-weight:500;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      font-size:58vw; font-weight:700;
       color:#C8FF00; line-height:1; position:relative; z-index:1;
-      text-shadow: 0 0 80px rgba(200,255,0,0.6);
+      text-shadow: 0 0 15vw rgba(200,255,0,0.8), 0 0 30vw rgba(200,255,0,0.4);
     }
   </style>
 </head>
