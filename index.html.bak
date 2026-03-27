@@ -98,12 +98,12 @@
 
     .screen {
       position: absolute; inset: 0; display: flex; flex-direction: column;
-      transition: transform 0.36s cubic-bezier(0.4,0,0.2,1), opacity 0.36s cubic-bezier(0.4,0,0.2,1), visibility 0s 0s;
+      transition: transform 0.36s cubic-bezier(0.4,0,0.2,1), opacity 0.36s cubic-bezier(0.4,0,0.2,1);
       will-change: transform, opacity;
-      z-index: 2; background: transparent; visibility: visible;
+      z-index: 2; background: transparent;
     }
-    .screen.off-right { transform: translateX(100%);  opacity: 0; pointer-events: none; visibility: hidden; transition: transform 0.36s cubic-bezier(0.4,0,0.2,1), opacity 0.36s cubic-bezier(0.4,0,0.2,1), visibility 0s 0.36s; }
-    .screen.off-left  { transform: translateX(-100%); opacity: 0; pointer-events: none; visibility: hidden; transition: transform 0.36s cubic-bezier(0.4,0,0.2,1), opacity 0.36s cubic-bezier(0.4,0,0.2,1), visibility 0s 0.36s; }
+    .screen.off-right { transform: translateX(100%);  opacity: 0; pointer-events: none; }
+    .screen.off-left  { transform: translateX(-100%); opacity: 0; pointer-events: none; }
 
     /* ── SHARED ── */
     .icon-btn {
@@ -176,10 +176,10 @@
     .auth-submit {
       width: 100%; padding: 17px; background: var(--lime); border: none; border-radius: 16px;
       color: #09090C; font-family: 'Bricolage Grotesque', sans-serif; font-size: 16px; font-weight: 800;
-      cursor: pointer; margin-top: 6px; pointer-events: auto;
+      cursor: pointer; margin-top: 6px;
       box-shadow: 0 4px 22px rgba(200,255,0,.22);
       transition: background .18s, box-shadow .18s, opacity .18s;
-      -webkit-tap-highlight-color: transparent; position: relative; z-index: 10;
+      -webkit-tap-highlight-color: transparent;
     }
     .auth-submit:hover { background: #d4ff1a; box-shadow: 0 6px 30px rgba(200,255,0,.38); }
     .auth-submit:disabled { opacity: .4; cursor: not-allowed; }
@@ -1183,34 +1183,6 @@
     let db = null;
     try { db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY); } catch(e) {}
 
-    // Helper: Wrap any promise with a timeout
-    function withTimeout(promise, ms = 10000) {
-      return Promise.race([
-        promise,
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error(`Request timed out after ${ms}ms`)), ms)
-        )
-      ]);
-    }
-
-    // Helper: Escape HTML to prevent XSS
-    function escapeHtml(text) {
-      if (!text) return '';
-      const div = document.createElement('div');
-      div.textContent = text;
-      return div.innerHTML;
-    }
-
-    // Helper: Convert Uint8Array to hex string
-    function toHex(uint8arr) {
-      return Array.from(uint8arr).map(b => b.toString(16).padStart(2, '0')).join('');
-    }
-
-    // Helper: Convert hex string to Uint8Array
-    function fromHex(hexStr) {
-      return new Uint8Array(hexStr.match(/.{1,2}/g).map(b => parseInt(b, 16)));
-    }
-
     // ── ADMIN CONFIG ──
     // To enable admin panel, set this to your login email.
     // Also run this SQL in Supabase Dashboard → SQL Editor:
@@ -1253,7 +1225,7 @@
       renderCurrencyChips();
       // Re-render history if on that screen
       if (screen === 'history') renderHistory(allTxData, activeFilter);
-      if (screen === 'chart') ChartModule.render(allTxData, activeChartPeriod, activeChartType);
+      if (screen === 'chart') renderChart();
     }
 
     function renderCurrencyChips() {
@@ -1292,416 +1264,6 @@
     let pinSetupFirst = '';      // first PIN entry (for confirm step)
     let realtimeChannel = null;  // Supabase Realtime channel — one per session
 
-    const DataModule = (() => {
-      // Private state — encapsulated, not accessed directly
-      let _allTxData = [];
-      let _labels = [];
-      let _labelsLoading = null;
-      let _historyLoading = null;
-      let _listeners = {}; // event listeners
-
-      // Register event listener
-      function addEventListener(eventType, callback) {
-        if (!_listeners[eventType]) _listeners[eventType] = [];
-        _listeners[eventType].push(callback);
-      }
-
-      // Remove event listener
-      function removeEventListener(eventType, callback) {
-        if (_listeners[eventType]) {
-          _listeners[eventType] = _listeners[eventType].filter(cb => cb !== callback);
-        }
-      }
-
-      // Emit event to all listeners
-      function _emit(eventType, data) {
-        if (_listeners[eventType]) {
-          _listeners[eventType].forEach(cb => cb(data));
-        }
-      }
-
-      // Getters
-      function getLabels() { return [..._labels]; }
-      function getTransactions() { return [..._allTxData]; }
-
-      // Setters
-      function setLabels(newLabels) {
-        _labels = Array.isArray(newLabels) ? newLabels : [];
-        if (currentUser?.id) {
-          localStorage.setItem(`spend_labels_${currentUser.id}`, JSON.stringify(_labels));
-        }
-      }
-
-      function setTransactions(newTx) {
-        _allTxData = Array.isArray(newTx) ? newTx : [];
-      }
-
-      // Load labels with dedup slot
-      async function loadLabels() {
-        if (_labelsLoading) return _labelsLoading;
-
-        _labelsLoading = (async () => {
-          try {
-            if (!currentUser?.id) {
-              toast('User not authenticated');
-              return _labels;
-            }
-            const { data, error } = await withTimeout(db.from('labels').select('*').eq('user_id', currentUser.id), 10000);
-            if (error) throw error;
-            setLabels(data || []);
-            _emit('labels-updated', _labels);
-            return _labels;
-          } catch (err) {
-            _emit('cache-error', { action: 'loadLabels', error: err.message });
-            toast('Could not load labels');
-            return _labels;
-          } finally {
-            _labelsLoading = null;
-          }
-        })();
-
-        return _labelsLoading;
-      }
-
-      // Load transaction history
-      async function loadHistory() {
-        if (_historyLoading) return _historyLoading;
-
-        _historyLoading = (async () => {
-          try {
-            if (!currentUser?.id) {
-              toast('User not authenticated');
-              return _allTxData;
-            }
-            const { data, error } = await withTimeout(db.from('expenses')
-              .select('*')
-              .eq('user_id', currentUser.id)
-              .order('created_at', { ascending: false })
-              .limit(200), 10000);
-            if (error) throw error;
-            setTransactions(data || []);
-            _emit('data-changed', { type: 'transactions', data: _allTxData });
-            return _allTxData;
-          } catch (err) {
-            _emit('cache-error', { action: 'loadHistory', error: err.message });
-            toast('Could not load transactions');
-            return _allTxData;
-          } finally {
-            _historyLoading = null;
-          }
-        })();
-
-        return _historyLoading;
-      }
-
-      // Load month totals
-      async function loadMonthTotals() {
-        try {
-          if (!currentUser?.id) {
-            toast('User not authenticated');
-            return [];
-          }
-          const { data, error } = await withTimeout(db.from('expenses')
-            .select('amount, label_id, created_at')
-            .eq('user_id', currentUser.id), 10000);
-          if (error) throw error;
-          setTransactions(data || []);
-          return data || [];
-        } catch (err) {
-          _emit('cache-error', { action: 'loadMonthTotals', error: err.message });
-          toast('Could not load month data');
-          return [];
-        }
-      }
-
-      // Add transaction
-      async function addTransaction(tx) {
-        try {
-          const { data, error } = await withTimeout(db.from('expenses').insert([tx]).select(), 10000);
-          if (error) throw error;
-          if (data && data[0]) {
-            _allTxData.push(data[0]);
-            _emit('data-changed', { type: 'transaction-added', data: data[0] });
-          }
-          return data?.[0];
-        } catch (err) {
-          _emit('cache-error', { action: 'addTransaction', error: err.message });
-          toast('Could not add transaction');
-          return null;
-        }
-      }
-
-      // Update transaction
-      async function updateTransaction(txId, updates) {
-        try {
-          const { data, error } = await withTimeout(db.from('expenses')
-            .update(updates)
-            .eq('id', txId)
-            .select(), 10000);
-          if (error) throw error;
-          if (data && data[0]) {
-            const idx = _allTxData.findIndex(tx => tx.id === txId);
-            if (idx >= 0) {
-              _allTxData[idx] = { ..._allTxData[idx], ...updates };
-            }
-            _emit('data-changed', { type: 'transaction-updated', data: data[0] });
-          }
-          return data?.[0];
-        } catch (err) {
-          _emit('cache-error', { action: 'updateTransaction', error: err.message });
-          toast('Could not update transaction');
-          return null;
-        }
-      }
-
-      // Delete transaction
-      async function deleteTransaction(txId) {
-        try {
-          const { error } = await withTimeout(db.from('expenses').delete().eq('id', txId), 10000);
-          if (error) throw error;
-          _allTxData = _allTxData.filter(tx => tx.id !== txId);
-          _emit('data-changed', { type: 'transaction-deleted', txId });
-          return true;
-        } catch (err) {
-          _emit('cache-error', { action: 'deleteTransaction', error: err.message });
-          toast('Could not delete transaction');
-          return false;
-        }
-      }
-
-      // Add label
-      async function addLabel(label) {
-        try {
-          const { data, error } = await withTimeout(db.from('labels').insert([label]).select(), 10000);
-          if (error) throw error;
-          if (data && data[0]) {
-            _labels.push(data[0]);
-            setLabels(_labels);
-            _emit('labels-updated', _labels);
-          }
-          return data?.[0];
-        } catch (err) {
-          _emit('cache-error', { action: 'addLabel', error: err.message });
-          toast('Could not add label');
-          return null;
-        }
-      }
-
-      // Update label
-      async function updateLabel(labelId, updates) {
-        try {
-          const { data, error } = await withTimeout(db.from('labels')
-            .update(updates)
-            .eq('id', labelId)
-            .select(), 10000);
-          if (error) throw error;
-          if (data && data[0]) {
-            const idx = _labels.findIndex(l => l.id === labelId);
-            if (idx >= 0) {
-              _labels[idx] = { ..._labels[idx], ...updates };
-            }
-            setLabels(_labels);
-            _emit('labels-updated', _labels);
-          }
-          return data?.[0];
-        } catch (err) {
-          _emit('cache-error', { action: 'updateLabel', error: err.message });
-          toast('Could not update label');
-          return null;
-        }
-      }
-
-      // Delete label
-      async function deleteLabel(labelId) {
-        try {
-          const { error } = await withTimeout(db.from('labels').delete().eq('id', labelId), 10000);
-          if (error) throw error;
-          _labels = _labels.filter(l => l.id !== labelId);
-          setLabels(_labels);
-          _emit('labels-updated', _labels);
-          return true;
-        } catch (err) {
-          _emit('cache-error', { action: 'deleteLabel', error: err.message });
-          toast('Could not delete label');
-          return false;
-        }
-      }
-
-      // Validate label exists
-      function validateLabelExists(labelId) {
-        return _labels.some(l => l.id === labelId);
-      }
-
-      // Public API
-      return {
-        getLabels,
-        getTransactions,
-        setLabels,
-        setTransactions,
-        loadLabels,
-        loadHistory,
-        loadMonthTotals,
-        addTransaction,
-        updateTransaction,
-        deleteTransaction,
-        addLabel,
-        updateLabel,
-        deleteLabel,
-        validateLabelExists,
-        addEventListener,
-        removeEventListener
-      };
-    })();
-
-    // ════════════════════════════
-    // CHART MODULE
-    // ════════════════════════════
-    const ChartModule = (() => {
-      // Private memoization cache
-      let cachedChartState = null; // { hash, period, chartType }
-      let cachedHTML = null;       // cached rendered innerHTML of chart-body
-
-      // Compute deterministic hash of current chart inputs
-      function computeDataHash(data, period, chartType) {
-        const str = JSON.stringify({
-          txCount: data.length,
-          dataHash: data.map(tx => `${tx.id}-${tx.amount}-${tx.label_name||''}`).join('|'),
-          period,
-          chartType
-        });
-        return str;
-      }
-
-      // Check if cache is still valid for given inputs
-      function isCacheValid(data, period, chartType) {
-        if (!cachedChartState || cachedHTML === null) return false;
-        const currentHash = computeDataHash(data, period, chartType);
-        return cachedChartState.hash === currentHash;
-      }
-
-      // Invalidate cache (called when data changes)
-      function invalidateCache() {
-        cachedChartState = null;
-        cachedHTML = null;
-      }
-
-      // Build chart HTML by delegating to existing render functions
-      // Returns the innerHTML to set on chart-body
-      function buildChartHTML(data, period, chartType) {
-        const body = document.getElementById('chart-body');
-        body.innerHTML = '';
-        const pStart = periodStart(period);
-        const filtered = pStart ? data.filter(t => t.created_at >= pStart) : data;
-        if (filtered.length === 0) {
-          body.innerHTML = `<div class="chart-empty"><div style="font-size:44px;opacity:.28">📊</div><div style="font-size:14.5px;font-weight:500;color:var(--muted)">No expenses for this period.</div></div>`;
-          return body.innerHTML;
-        }
-        if (chartType === 'donut') renderDonutChart(filtered, body);
-        if (chartType === 'bar')   renderBarChart(filtered, body);
-        if (chartType === 'line')  renderLineChart(filtered, body);
-        return body.innerHTML;
-      }
-
-      // Listen for data changes from DataModule — invalidate cache automatically
-      DataModule.addEventListener('data-changed', () => {
-        invalidateCache();
-      });
-
-      // Public API
-      return {
-        render(data, period, chartType) {
-          if (isCacheValid(data, period, chartType) && cachedHTML !== null) {
-            // Cache hit — reuse cached output
-            document.getElementById('chart-body').innerHTML = cachedHTML;
-            return;
-          }
-
-          // Cache miss — build new chart and cache result
-          buildChartHTML(data, period, chartType);
-          const hash = computeDataHash(data, period, chartType);
-          cachedChartState = { hash, period, chartType };
-          cachedHTML = document.getElementById('chart-body').innerHTML;
-        },
-
-        invalidateCache() {
-          invalidateCache();
-        }
-      };
-    })();
-
-    // ════════════════════════════
-    // UI MODULE — menu state & click-outside delegation
-    // ════════════════════════════
-    const UIModule = (() => {
-      let menuStack = [];           // Stack of { name, element, anchor, onClose } for open menus
-      let clickOutsideListener = null; // Single shared document click listener
-
-      function attachClickOutside() {
-        if (clickOutsideListener) return; // Already attached — avoid duplicate listeners
-
-        clickOutsideListener = function(e) {
-          if (menuStack.length === 0) {
-            document.removeEventListener('click', clickOutsideListener);
-            clickOutsideListener = null;
-            return;
-          }
-
-          const top = menuStack[menuStack.length - 1];
-          // Check if click is outside the top-most open menu element and its anchor
-          const isOutside = !top.element || (!top.element.contains(e.target) && e.target !== top.anchor);
-          if (isOutside) {
-            _closeTop();
-          }
-        };
-
-        document.addEventListener('click', clickOutsideListener);
-      }
-
-      function _closeTop() {
-        const entry = menuStack.pop();
-        if (entry && entry.onClose) entry.onClose();
-        if (menuStack.length === 0 && clickOutsideListener) {
-          document.removeEventListener('click', clickOutsideListener);
-          clickOutsideListener = null;
-        }
-      }
-
-      return {
-        // Register a menu as open; element = the menu DOM node, anchor = trigger element, onClose = callback on close
-        openMenu(name, element, anchor, onClose) {
-          menuStack.push({ name, element, anchor: anchor || null, onClose: onClose || null });
-          attachClickOutside();
-        },
-        // Close the topmost open menu
-        closeTopMenu() {
-          if (menuStack.length > 0) _closeTop();
-        },
-        // Close a specific named menu
-        closeMenu(name) {
-          const idx = menuStack.findIndex(m => m.name === name);
-          if (idx === -1) return;
-          const entry = menuStack.splice(idx, 1)[0];
-          if (entry && entry.onClose) entry.onClose();
-          if (menuStack.length === 0 && clickOutsideListener) {
-            document.removeEventListener('click', clickOutsideListener);
-            clickOutsideListener = null;
-          }
-        },
-        // Check if any menu with this name is currently open
-        isMenuOpen(name) {
-          return menuStack.some(m => m.name === name);
-        },
-        // Get copy of current stack names
-        getMenuStack() {
-          return menuStack.map(m => m.name);
-        },
-        // Close all open menus
-        closeAll() {
-          while (menuStack.length > 0) _closeTop();
-        }
-      };
-    })();
-
     // ════════════════════════════
     // ACCENT COLOR
     // ════════════════════════════
@@ -1724,8 +1286,6 @@
     ];
 
     function accentKey() { return `spend_accent_${currentUser?.id || 'anon'}`; }
-
-    function labelCacheKey() { return `spend_labels_${currentUser?.id || 'anon'}`; }
 
     function applyAccent(hex) {
       document.documentElement.style.setProperty('--lime', hex);
@@ -1775,7 +1335,7 @@
         256
       );
 
-      const computedHash = toHex(new Uint8Array(bits));
+      const computedHash = Array.from(new Uint8Array(bits)).map(b => b.toString(16).padStart(2,'0')).join('');
       return computedHash === storedHash;
     }
 
@@ -1790,8 +1350,8 @@
         256
       );
 
-      const saltHex = toHex(salt);
-      const hashHex = toHex(new Uint8Array(bits));
+      const saltHex = Array.from(salt).map(b => b.toString(16).padStart(2,'0')).join('');
+      const hashHex = Array.from(new Uint8Array(bits)).map(b => b.toString(16).padStart(2,'0')).join('');
       const combined = `${saltHex}:${hashHex}`;
       localStorage.setItem(pinKey(), combined);
     }
@@ -1823,41 +1383,18 @@
       screen = 'numpad';
       animateShapes();
       updateTabBar();
-      Promise.all([
-        DataModule.loadLabels().catch(err => {
-          logError('loadLabels', err);
-          return null;
-        }),
-        DataModule.loadMonthTotals().catch(err => {
-          logError('loadMonthTotals', err);
-          return [];
-        })
-      ])
-      .then(([labelsResult, monthTotalsResult]) => {
-        labels = DataModule.getLabels();
-        monthTotals = monthTotalsResult || {};
-        refreshDisplay();
-        if (!labelsResult || !monthTotalsResult) {
-          toast('Some data failed to load. Try refreshing.', 'warn');
-        }
-      })
-      .catch(err => {
-        logError('unlockToNumpad/data-load', err);
-        toast('Could not load your data — reload the page to try again');
-      });
+      Promise.all([loadLabels(), loadMonthTotals()])
+        .then(() => refreshDisplay())
+        .catch(err => {
+          logError('unlockToNumpad/Promise.all', err);
+          toast('Could not load your data — reload the page to try again');
+        });
       document.getElementById('amount-currency').textContent = sym();
       document.getElementById('lp-currency').textContent = sym();
       applyAccent(localStorage.getItem(accentKey()) || '#C8FF00');
       const initial = (currentUser.email || '?')[0].toUpperCase();
       document.getElementById('btn-profile').textContent = initial;
       document.getElementById('profile-email').textContent = currentUser.email;
-      if (currentUser?.email === ADMIN_EMAIL) {
-        const el = document.getElementById('btn-admin-panel');
-        if (el) el.style.display = 'block';
-      }
-      setupConnectivityWatch();
-      setupRealtimeSync(currentUser.id);
-      setupVisibilityWatch();
     }
 
     // ── Lock screen ──
@@ -1921,10 +1458,8 @@
     }
 
     // ── PIN Setup Sheet ──
-    let pinSetupInProgress = false;
-
     function showPinSetupSheet() {
-      pinSetupRaw = ''; pinSetupStep = 'enter'; pinSetupFirst = ''; pinSetupInProgress = false;
+      pinSetupRaw = ''; pinSetupStep = 'enter'; pinSetupFirst = '';
       document.getElementById('pin-sheet-title').textContent = 'Set up PIN';
       document.getElementById('pin-sheet-sub').textContent = 'Enter a 4-digit PIN for quick access next time';
       updatePinSheetDots();
@@ -1947,7 +1482,6 @@
     }
 
     async function pinSetupInput(k) {
-      if (pinSetupInProgress) return;  // Prevent input during setup
       if (k === '⌫') {
         pinSetupRaw = pinSetupRaw.slice(0, -1);
         updatePinSheetDots();
@@ -1967,14 +1501,9 @@
         } else {
           // Confirm step
           if (pinSetupRaw === pinSetupFirst) {
-            pinSetupInProgress = true;
-            try {
-              await setupPIN(pinSetupRaw);
-              closePinSheet();
-              toast('PIN set! You\'ll use it next time you open the app.', 'ok');
-            } finally {
-              pinSetupInProgress = false;
-            }
+            await setupPIN(pinSetupRaw);
+            closePinSheet();
+            toast('PIN set! You\'ll use it next time you open the app.', 'ok');
           } else {
             // Mismatch — restart
             pinSetupRaw = ''; pinSetupStep = 'enter'; pinSetupFirst = '';
@@ -2018,8 +1547,8 @@
         credIdBytes
       );
 
-      const ivHex = toHex(iv);
-      const ctHex = toHex(new Uint8Array(ciphertext));
+      const ivHex = Array.from(iv).map(b => b.toString(16).padStart(2,'0')).join('');
+      const ctHex = Array.from(new Uint8Array(ciphertext)).map(b => b.toString(16).padStart(2,'0')).join('');
       return `enc:${ivHex}:${ctHex}`; // Prefix "enc:" to distinguish from unencrypted
     }
 
@@ -2064,6 +1593,7 @@
             timeout: 60000,
           }
         });
+        const uid = currentUser?.id || cachedSession?.user?.id || 'anon';
         const encKey = await deriveEncryptionKey(uid);
         const encryptedCredId = await encryptCredentialId(new Uint8Array(cred.rawId), encKey);
         localStorage.setItem(bioKey(), '1');
@@ -2211,39 +1741,23 @@
     }
 
     async function doAuth() {
-      console.log('🔵 doAuth called');
       const email = document.getElementById('auth-email').value.trim();
       const pass  = document.getElementById('auth-pass').value;
       const errEl = document.getElementById('auth-error');
       const btn   = document.getElementById('auth-submit');
 
-      console.log('📧 Email:', email);
-      console.log('🔑 Pass:', pass ? '[entered]' : '[empty]');
-
       errEl.textContent = '';
-      if (!email || !pass) {
-        errEl.textContent = 'Enter email and password.';
-        console.log('⚠️ Email or password empty');
-        return;
-      }
+      if (!email || !pass) { errEl.textContent = 'Enter email and password.'; return; }
       if (!db) { errEl.textContent = 'Database not connected.'; return; }
 
       btn.disabled = true;
       btn.innerHTML = '<span class="spin" style="border-top-color:#09090C;width:18px;height:18px"></span>';
 
       let result;
-      const authPromise = authMode === 'signup'
-        ? db.auth.signUp({ email, password: pass })
-        : db.auth.signInWithPassword({ email, password: pass });
-
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject({ error: { message: 'Request timed out. Please check your connection and try again.' } }), 15000)
-      );
-
-      try {
-        result = await Promise.race([authPromise, timeoutPromise]);
-      } catch (err) {
-        result = err || { error: { message: 'An error occurred. Please try again.' } };
+      if (authMode === 'signup') {
+        result = await db.auth.signUp({ email, password: pass });
+      } else {
+        result = await db.auth.signInWithPassword({ email, password: pass });
       }
 
       btn.disabled = false;
@@ -2255,13 +1769,13 @@
       }
 
       // If signup, Supabase may require email confirmation
-      if (authMode === 'signup' && !result.data?.session) {
+      if (authMode === 'signup' && !result.data.session) {
         errEl.style.color = 'var(--lime)';
         errEl.textContent = 'Check your email to confirm your account.';
         return;
       }
 
-      currentUser = result.data?.user || result.data?.session?.user;
+      currentUser = result.data.user || result.data.session?.user;
       if (currentUser?.email) localStorage.setItem('spend_last_email', currentUser.email);
       onSignedIn();
     }
@@ -2285,29 +1799,13 @@
       // Apply saved accent color
       applyAccent(localStorage.getItem(accentKey()) || '#C8FF00');
 
-      // Load data — don't reject on partial failure
-      Promise.all([
-        DataModule.loadLabels().catch(err => {
-          logError('loadLabels', err);
-          return null;
-        }),
-        DataModule.loadMonthTotals().catch(err => {
-          logError('loadMonthTotals', err);
-          return [];
-        })
-      ])
-      .then(([labelsResult, monthTotalsResult]) => {
-        labels = DataModule.getLabels();
-        monthTotals = monthTotalsResult || {};
-        refreshDisplay();
-        if (!labelsResult || !monthTotalsResult) {
-          toast('Some data failed to load. Try refreshing.', 'warn');
-        }
-      })
-      .catch(err => {
-        logError('onSignedIn/data-load', err);
-        toast('Could not load your data — reload the page to try again');
-      });
+      // Load data
+      Promise.all([loadLabels(), loadMonthTotals()])
+        .then(() => refreshDisplay())
+        .catch(err => {
+          logError('onSignedIn/Promise.all', err);
+          toast('Could not load your data — reload the page to try again');
+        });
 
       // Apply currency
       document.getElementById('amount-currency').textContent = sym();
@@ -2317,7 +1815,7 @@
       if (!hasPIN()) setTimeout(showPinSetupSheet, 800);
 
       // Show admin panel button if admin
-      if (currentUser?.email === ADMIN_EMAIL) {
+      if (currentUser.email === ADMIN_EMAIL) {
         const el = document.getElementById('btn-admin-panel');
         if (el) el.style.display = 'block';
       }
@@ -2398,19 +1896,11 @@
       updateTabBar(); // hides tab bar on label screen
     }
 
-    let shapeAnimationScheduled = false;
-
     function animateShapes() {
-      if (shapeAnimationScheduled) return;  // Debounce: skip if already scheduled
-      shapeAnimationScheduled = true;
-
-      requestAnimationFrame(() => {
-        document.querySelectorAll('.shape').forEach(s => {
-          s.style.animation = 'none';
-          s.offsetHeight; // reflow
-          s.style.animation = '';
-        });
-        shapeAnimationScheduled = false;
+      document.querySelectorAll('.shape').forEach(s => {
+        s.style.animation = 'none';
+        s.offsetHeight; // reflow
+        s.style.animation = '';
       });
     }
 
@@ -2461,8 +1951,8 @@
       // Data loading per target
       if (target === 'history') loadHistory();
       if (target === 'chart') {
-        if (allTxData.length === 0) loadHistory().then(() => ChartModule.render(allTxData, activeChartPeriod, activeChartType));
-        else ChartModule.render(allTxData, activeChartPeriod, activeChartType);
+        if (allTxData.length === 0) loadHistory().then(() => renderChart());
+        else renderChart();
       }
       if (target === 'budget') renderBudgetScreen();
       if (target === 'feedback') { fbRating = 1; applyFbState(1); }
@@ -2486,9 +1976,9 @@
       animateShapes();
       updateTabBar();
       if (allTxData.length === 0) {
-        loadHistory().then(() => ChartModule.render(allTxData, activeChartPeriod, activeChartType));
+        loadHistory().then(() => renderChart());
       } else {
-        ChartModule.render(allTxData, activeChartPeriod, activeChartType);
+        renderChart();
       }
     }
 
@@ -2716,9 +2206,9 @@
         const card = document.createElement('div'); card.className = 'fb-card';
         const d = new Date(f.created_at);
         const dateStr = d.toLocaleDateString([], { month:'short', day:'numeric' }) + ' · ' + d.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
-        let html = `<div class="fb-card-meta"><span class="fb-badge ${f.rating||'good'}">${ratingLabels[f.rating]||f.rating}</span><span class="fb-card-email">${escapeHtml(f.user_email||'unknown')}</span><span class="fb-card-date">${dateStr}</span></div>`;
-        if (f.message) html += `<div class="fb-card-msg">${escapeHtml(f.message)}</div>`;
-        if (f.features_requested) html += `<div class="fb-card-feat">💡 ${escapeHtml(f.features_requested)}</div>`;
+        let html = `<div class="fb-card-meta"><span class="fb-badge ${f.rating||'good'}">${ratingLabels[f.rating]||f.rating}</span><span class="fb-card-email">${f.user_email||'unknown'}</span><span class="fb-card-date">${dateStr}</span></div>`;
+        if (f.message) html += `<div class="fb-card-msg">${f.message}</div>`;
+        if (f.features_requested) html += `<div class="fb-card-feat">💡 ${f.features_requested}</div>`;
         if (f.voice_url) {
           // Generate a signed URL (works for private buckets)
           const { data: signed } = await db.storage.from('Voice Feedback').createSignedUrl(f.voice_url, 3600);
@@ -2783,7 +2273,7 @@
         col.appendChild(hdr);
         (data||[]).filter(r => r.status === status).forEach(r => {
           const card = document.createElement('div'); card.className = 'feat-card';
-          card.innerHTML = `<div class="feat-card-title">${escapeHtml(r.title)}</div>${r.description ? `<div class="feat-card-desc">${escapeHtml(r.description)}</div>` : ''}`;
+          card.innerHTML = `<div class="feat-card-title">${r.title}</div>${r.description ? `<div class="feat-card-desc">${r.description}</div>` : ''}`;
           card.onclick = () => cycleFeatStatus(r.id, r.status);
           col.appendChild(card);
         });
@@ -2806,22 +2296,9 @@
       const saveBtn = document.createElement('button'); saveBtn.className = 'feat-add-save'; saveBtn.textContent = 'Add';
       saveBtn.onclick = async () => {
         const title = titleInput.value.trim();
-        if (!title) { toast('Title required'); return; }
-        if (title.length > 200) { toast('Title too long (max 200 chars)'); return; }
-        const desc = descInput.value.trim();
-        if (desc.length > 1000) { toast('Description too long (max 1000 chars)'); return; }
-        saveBtn.disabled = true;
-        try {
-          await withTimeout(db.from('feature_requests').insert({ title, description: desc||null, status }), 10000);
-          form.remove();
-          loadFeatureBoard();
-          toast('Feature added', 'ok');
-        } catch (err) {
-          logError('addFeature', err);
-          toast('Could not add feature — try again');
-        } finally {
-          saveBtn.disabled = false;
-        }
+        if (!title) return;
+        await db.from('feature_requests').insert({ title, description: descInput.value.trim()||null, status });
+        loadFeatureBoard();
       };
       form.appendChild(titleInput); form.appendChild(descInput); form.appendChild(saveBtn);
       col.appendChild(form);
@@ -2830,29 +2307,13 @@
 
     async function cycleFeatStatus(id, current) {
       const next = { todo:'in_progress', in_progress:'done', done:'todo' };
-      const nextStatus = next[current];
-      if (!nextStatus) { logError('cycleFeatStatus', 'Invalid status'); return; }
-      try {
-        await withTimeout(db.from('feature_requests').update({ status: nextStatus }).eq('id', id), 10000);
-        loadFeatureBoard();
-      } catch (err) {
-        logError('cycleFeatStatus', err);
-        toast('Could not update — try again');
-      }
+      await db.from('feature_requests').update({ status: next[current] }).eq('id', id);
+      loadFeatureBoard();
     }
 
     async function loadAnnouncements() {
       const body = document.getElementById('admin-body');
-      let data;
-      try {
-        const result = await withTimeout(db.from('announcements').select('*').order('created_at', { ascending: false }), 10000);
-        if (result.error) throw result.error;
-        data = result.data;
-      } catch (err) {
-        logError('loadAnnouncements', err);
-        body.innerHTML = `<div class="admin-empty">Could not load announcements. Try again later.</div>`;
-        return;
-      }
+      const { data } = await db.from('announcements').select('*').order('created_at', { ascending: false });
       body.innerHTML = '';
       const wrap = document.createElement('div'); wrap.className = 'announce-wrap';
       const textarea = document.createElement('textarea'); textarea.className = 'announce-input'; textarea.placeholder = 'Write an announcement for all users…';
@@ -2860,19 +2321,13 @@
       sendBtn.style.marginTop = '0';
       sendBtn.onclick = async () => {
         const msg = textarea.value.trim();
-        if (!msg) { toast('Cannot send empty announcement'); return; }
-        if (msg.length > 5000) { toast('Announcement too long (max 5000 chars)'); return; }
+        if (!msg) return;
         sendBtn.disabled = true;
-        try {
-          await withTimeout(db.from('announcements').insert({ message: msg, is_active: true }), 10000);
-          textarea.value = '';
-          toast('Announcement sent!', 'ok');
-          loadAnnouncements();
-        } catch (err) {
-          logError('sendAnnouncement', err);
-          toast('Could not send — try again');
-          sendBtn.disabled = false;
-        }
+        await db.from('announcements').insert({ message: msg, is_active: true });
+        textarea.value = '';
+        sendBtn.disabled = false;
+        toast('Announcement sent!', 'ok');
+        loadAnnouncements();
       };
       wrap.appendChild(textarea); wrap.appendChild(sendBtn);
       if (data?.length) {
@@ -2887,15 +2342,8 @@
           toggle.className = 'announce-toggle' + (ann.is_active ? ' active' : '');
           toggle.textContent = ann.is_active ? 'Live' : 'Off';
           toggle.onclick = async () => {
-            toggle.disabled = true;
-            try {
-              await withTimeout(db.from('announcements').update({ is_active: !ann.is_active }).eq('id', ann.id), 10000);
-              loadAnnouncements();
-            } catch (err) {
-              logError('toggleAnnouncement', err);
-              toast('Could not toggle — try again');
-              toggle.disabled = false;
-            }
+            await db.from('announcements').update({ is_active: !ann.is_active }).eq('id', ann.id);
+            loadAnnouncements();
           };
           card.appendChild(msg); card.appendChild(toggle);
           wrap.appendChild(card);
@@ -3074,26 +2522,20 @@
 
     document.getElementById('bnp-cancel').addEventListener('click', closeBudgetNumpad);
 
-    let bnpConfirming = false;
-    document.getElementById('bnp-confirm').addEventListener('click', async () => {
-      if (!bnpKey || !bnpPeriod || bnpConfirming) return;
-      bnpConfirming = true;
-      try {
-        const val = bnpRaw.trim();
-        const b = loadBudgets();
-        if (bnpKey === 'overall') {
-          b.overall = { ...(b.overall||{}), [bnpPeriod]: val };
-        } else {
-          const n = bnpKey.replace('label_', '');
-          b.labels = b.labels || {};
-          b.labels[n] = { ...(b.labels[n]||{}), [bnpPeriod]: val };
-        }
-        saveBudgets(b);
-        closeBudgetNumpad();
-        renderBudgetScreen();
-      } finally {
-        bnpConfirming = false;
+    document.getElementById('bnp-confirm').addEventListener('click', () => {
+      if (!bnpKey || !bnpPeriod) return;
+      const val = bnpRaw.trim();
+      const b = loadBudgets();
+      if (bnpKey === 'overall') {
+        b.overall = { ...(b.overall||{}), [bnpPeriod]: val };
+      } else {
+        const n = bnpKey.replace('label_', '');
+        b.labels = b.labels || {};
+        b.labels[n] = { ...(b.labels[n]||{}), [bnpPeriod]: val };
       }
+      saveBudgets(b);
+      closeBudgetNumpad();
+      renderBudgetScreen();
     });
 
     function checkBudgetWarnings(labelName) {
@@ -3129,7 +2571,7 @@
         toast('Back online \u2014 syncing\u2026');
         loadHistory().then(() => {
           if (screen === 'history') renderHistory(allTxData, activeFilter);
-          if (screen === 'chart')   ChartModule.render(allTxData, activeChartPeriod, activeChartType);
+          if (screen === 'chart')   renderChart();
         });
       });
     }
@@ -3139,10 +2581,25 @@
     // ════════════════════════════
     function labelCacheKey() { return `spend_labels_${currentUser?.id || 'anon'}`; }
 
+    let _labelsLoading = null;
+
     async function loadLabels() {
-      await DataModule.loadLabels();
-      labels = DataModule.getLabels(); // sync global
-      renderChips();
+      if (_labelsLoading) return _labelsLoading;
+      _labelsLoading = _doLoadLabels();
+      try { await _labelsLoading; } finally { _labelsLoading = null; }
+    }
+
+    async function _doLoadLabels() {
+      const cached=localStorage.getItem(labelCacheKey());
+      if (cached) try { labels=JSON.parse(cached); } catch {}
+      if (!db) return;
+      const { data, error } = await db.from('labels').select('*').order('created_at', { ascending: false });
+      if (error) {
+        logError('loadLabels', error);
+        if (!labels.length) toast('Could not load labels — check your connection');
+        return;
+      }
+      if (Array.isArray(data)) { labels = data; localStorage.setItem(labelCacheKey(), JSON.stringify(labels)); renderChips(); }
     }
 
     // ════════════════════════════
@@ -3185,26 +2642,17 @@
       const { eventType, new: newRow, old: oldRow } = payload;
 
       if (eventType === 'INSERT') {
-        // Update or insert: if ID exists, update it; otherwise unshift
-        const idx = allTxData.findIndex(tx => tx.id === newRow.id);
-        if (idx !== -1) {
-          allTxData[idx] = newRow;  // Update with latest server data
-        } else {
-          allTxData.unshift(newRow);  // New row
-        }
-        DataModule.setTransactions(allTxData);
+        // Guard against duplicate: app may have already added row optimistically
+        if (allTxData.some(tx => tx.id === newRow.id)) return;
+        allTxData.unshift(newRow);
 
       } else if (eventType === 'UPDATE') {
         const idx = allTxData.findIndex(tx => tx.id === newRow.id);
-        if (idx !== -1) {
-          allTxData[idx] = newRow;
-          DataModule.setTransactions(allTxData);
-        }
+        if (idx !== -1) allTxData[idx] = newRow;
 
       } else if (eventType === 'DELETE') {
         // DELETE payload.old contains only primary key — use id only
         allTxData = allTxData.filter(tx => tx.id !== oldRow.id);
-        DataModule.setTransactions(allTxData);
       }
 
       // Re-render only the visible screen
@@ -3212,35 +2660,26 @@
         renderFilterChips(allTxData);
         renderHistory(allTxData, activeFilter);
       }
-      if (screen === 'chart') ChartModule.render(allTxData, activeChartPeriod, activeChartType);
+      if (screen === 'chart') renderChart();
     }
 
     function handleLabelChange(payload) {
       const { eventType, new: newRow, old: oldRow } = payload;
 
       if (eventType === 'INSERT') {
-        const idx = labels.findIndex(l => l.id === newRow.id);
-        if (idx !== -1) {
-          labels[idx] = newRow;  // Update with latest server data
-        } else {
-          labels.unshift(newRow);  // New label
-        }
-        DataModule.setLabels(labels);
+        if (labels.some(l => l.id === newRow.id)) return;
+        labels.unshift(newRow);
 
       } else if (eventType === 'UPDATE') {
         const idx = labels.findIndex(l => l.id === newRow.id);
-        if (idx !== -1) {
-          labels[idx] = newRow;
-          DataModule.setLabels(labels);
-        }
+        if (idx !== -1) labels[idx] = newRow;
 
       } else if (eventType === 'DELETE') {
         labels = labels.filter(l => l.id !== oldRow.id);
-        DataModule.setLabels(labels);
       }
 
       // Update localStorage cache
-      if (currentUser?.id) {
+      if (currentUser) {
         localStorage.setItem(`spend_labels_${currentUser.id}`, JSON.stringify(labels));
       }
 
@@ -3262,7 +2701,13 @@
     }
 
     async function loadMonthTotals() {
-      return DataModule.loadMonthTotals();
+      if (!db) return;
+      const { data, error } = await db.from('expenses').select('label_name,amount').gte('created_at', monthStart());
+      if (error) { logError('loadMonthTotals', error); return; }
+      if (!data) return;
+      const totals={};
+      data.forEach(r=>{ totals[r.label_name]=(totals[r.label_name]||0)+parseFloat(r.amount); });
+      monthTotals=totals;
     }
 
     function renderChips() {
@@ -3319,40 +2764,23 @@
       const btn=document.createElement('button');
       btn.className='budget-set-btn'; btn.textContent='Set';
       btn.addEventListener('click',async()=>{
-        const input_val = input.value.trim();
-        let val;
-        if (input_val === '') {
-          val = null;
-        } else {
-          const parsed = parseFloat(input_val);
-          if (isNaN(parsed)) { toast('Invalid budget amount'); return; }
-          if (parsed < 0) { toast('Budget cannot be negative'); return; }
-          val = parsed;
-        }
-        if (!db) { toast('No DB connection'); UIModule.closeMenu('budget-input'); return; }
-        btn.disabled = true;
-        try {
-          await withTimeout(db.from('labels').update({budget:val}).eq('id',lbl.id), 10000);
-          lbl.budget=val;
-          localStorage.setItem(labelCacheKey(),JSON.stringify(labels));
-          UIModule.closeMenu('budget-input'); // closes menu and removes row via onClose callback
-          await loadMonthTotals();
-          renderChips();
-          toast(val?`Budget set: ${sym()}${val.toFixed(2)}`:'Budget cleared', 'ok');
-        } catch (err) {
-          logError('setBudget', err);
-          toast('Could not set budget — try again');
-        } finally {
-          btn.disabled = false;
-        }
+        const val=parseFloat(input.value)||null;
+        if (!db) { toast('No DB connection'); row.remove(); return; }
+        await db.from('labels').update({budget:val}).eq('id',lbl.id);
+        lbl.budget=val;
+        localStorage.setItem(labelCacheKey(),JSON.stringify(labels));
+        row.remove();
+        await loadMonthTotals();
+        renderChips();
+        toast(val?`Budget set: ${sym()}${val.toFixed(2)}`:'Budget cleared', 'ok');
       });
       row.appendChild(input); row.appendChild(btn);
       chipEl.style.position='relative';
       chipEl.appendChild(row);
       setTimeout(()=>input.focus(),50);
-      setTimeout(()=>{
-        UIModule.openMenu('budget-input', row, chipEl, ()=>row.remove());
-      },100);
+      setTimeout(()=>document.addEventListener('click',function outside(e){
+        if (!row.contains(e.target)&&e.target!==chipEl){row.remove();document.removeEventListener('click',outside);}
+      }),100);
     }
 
     function openLabelActions(lbl, chipEl) {
@@ -3363,34 +2791,24 @@
       const renameBtn = document.createElement('button');
       renameBtn.className = 'label-action-btn';
       renameBtn.textContent = '✏️ Rename';
-      renameBtn.addEventListener('click', () => { UIModule.closeMenu('label-actions'); renameLabelPrompt(lbl, chipEl); });
+      renameBtn.addEventListener('click', () => { menu.remove(); renameLabelPrompt(lbl, chipEl); });
 
       const budgetBtn = document.createElement('button');
       budgetBtn.className = 'label-action-btn';
       budgetBtn.textContent = '💰 Set Budget';
-      budgetBtn.addEventListener('click', () => { UIModule.closeMenu('label-actions'); openBudgetInput(lbl, chipEl); });
+      budgetBtn.addEventListener('click', () => { menu.remove(); openBudgetInput(lbl, chipEl); });
 
       const deleteBtn = document.createElement('button');
       deleteBtn.className = 'label-action-btn danger';
       deleteBtn.textContent = '🗑 Delete';
-      // QUAL-03: Disable delete if label is currently being edited in the edit modal
-      if (editLabel && editLabel.id === lbl.id) {
-        deleteBtn.disabled = true;
-        deleteBtn.title = 'Cannot delete label while editing';
-        deleteBtn.style.opacity = '0.35';
-        deleteBtn.style.cursor = 'not-allowed';
-      }
-      deleteBtn.addEventListener('click', () => {
-        if (deleteBtn.disabled) return;
-        UIModule.closeMenu('label-actions'); deleteLabel(lbl);
-      });
+      deleteBtn.addEventListener('click', () => { menu.remove(); deleteLabel(lbl); });
 
       menu.appendChild(renameBtn); menu.appendChild(budgetBtn); menu.appendChild(deleteBtn);
       chipEl.style.position = 'relative';
       chipEl.appendChild(menu);
-      setTimeout(() => {
-        UIModule.openMenu('label-actions', menu, chipEl, () => menu.remove());
-      }, 100);
+      setTimeout(() => document.addEventListener('click', function outside(e) {
+        if (!menu.contains(e.target) && e.target !== chipEl) { menu.remove(); document.removeEventListener('click', outside); }
+      }), 100);
     }
 
     function renameLabelPrompt(lbl, chipEl) {
@@ -3403,39 +2821,29 @@
       btn.className = 'budget-set-btn'; btn.textContent = 'Save';
       btn.addEventListener('click', async () => {
         const newName = input.value.trim();
-        if (!newName || newName === lbl.name) { UIModule.closeMenu('rename-input'); return; }
-        if (newName.length > 32) { toast('Label name too long (max 32 chars)'); return; }
-        if (!db) { toast('No DB connection'); return; }
-
-        btn.disabled = true;
-        try {
-          const { error } = await withTimeout(db.from('labels').update({ name: newName }).eq('id', lbl.id), 10000);
-          if (error) { logError('renameLabelPrompt', error); errorToast(error, 'Could not rename label'); return; }
-
-          lbl.name = newName;
-          DataModule.setLabels(labels);  // ← SYNC to DataModule!
-          localStorage.setItem(labelCacheKey(), JSON.stringify(labels));
-          UIModule.closeMenu('rename-input');
-          renderChips();
-          toast('Label renamed', 'ok');
-        } finally {
-          btn.disabled = false;
-        }
+        if (!newName || newName === lbl.name) { row.remove(); return; }
+        const { error } = await db.from('labels').update({ name: newName }).eq('id', lbl.id);
+        if (error) { logError('renameLabelPrompt', error); errorToast(error, 'Could not rename label'); return; }
+        lbl.name = newName;
+        localStorage.setItem(labelCacheKey(), JSON.stringify(labels));
+        row.remove();
+        renderChips();
+        toast('Label renamed', 'ok');
       });
       row.appendChild(input); row.appendChild(btn);
       chipEl.style.position = 'relative';
       chipEl.appendChild(row);
       setTimeout(() => input.focus(), 50);
-      setTimeout(() => {
-        UIModule.openMenu('rename-input', row, chipEl, () => row.remove());
-      }, 100);
+      setTimeout(() => document.addEventListener('click', function outside(e) {
+        if (!row.contains(e.target) && e.target !== chipEl) { row.remove(); document.removeEventListener('click', outside); }
+      }), 100);
     }
 
     async function deleteLabel(lbl) {
       if (!confirm(`Delete "${lbl.name}"? This won't delete existing expenses.`)) return;
       const { error } = await db.from('labels').delete().eq('id', lbl.id);
       if (error) { logError('deleteLabel', error); errorToast(error, 'Could not delete label'); return; }
-      labels = labels.filter(l => l.id !== lbl.id); DataModule.setLabels(labels);
+      labels = labels.filter(l => l.id !== lbl.id);
       localStorage.setItem(labelCacheKey(), JSON.stringify(labels));
       if (picked?.id === lbl.id) { picked = null; document.getElementById('btn-save').disabled = true; }
       renderChips();
@@ -3476,55 +2884,26 @@
           const save = async () => {
             const newName = input.value.trim();
             if (newName && newName !== lbl.name) {
-              try {
-                const { error } = await withTimeout(db.from('labels').update({ name: newName }).eq('id', lbl.id), 10000);
-                if (!error) {
-                  lbl.name = newName;
-                  DataModule.setLabels(labels);  // ← SYNC to DataModule!
-                  localStorage.setItem(labelCacheKey(), JSON.stringify(labels));
-                  toast('Renamed', 'ok');
-                } else {
-                  logError('renderManageLabels/rename', error);
-                  errorToast(error, 'Could not rename label');
-                }
-              } catch (err) {
-                logError('renderManageLabels/rename', err);
-                errorToast(err, 'Could not rename label');
-              }
+              const { error } = await db.from('labels').update({ name: newName }).eq('id', lbl.id);
+              if (!error) { lbl.name = newName; localStorage.setItem(labelCacheKey(), JSON.stringify(labels)); toast('Renamed', 'ok'); }
+              else { logError('renderManageLabels/rename', error); errorToast(error, 'Could not rename label'); }
             }
-            row.replaceChild(name, input);
-            name.textContent = lbl.name;
-            dot.style.background = chipColor(lbl.name).bg;
+            row.replaceChild(name, input); name.textContent = lbl.name; dot.style.background = chipColor(lbl.name).bg;
           };
           input.addEventListener('blur', save);
           input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
         });
 
         const delBtn = document.createElement('button'); delBtn.className = 'ml-action danger'; delBtn.title = 'Delete'; delBtn.innerHTML = '🗑';
-        // QUAL-03: Disable delete if this label is currently being edited in the edit modal
-        if (editLabel && editLabel.id === lbl.id) {
-          delBtn.disabled = true;
-          delBtn.title = 'Cannot delete label while editing';
-          delBtn.style.opacity = '0.35';
-          delBtn.style.cursor = 'not-allowed';
-        }
         delBtn.addEventListener('click', async () => {
-          if (delBtn.disabled) return; // Safety guard — button may be reenabled mid-session
           if (!confirm(`Delete "${lbl.name}"?`)) return;
-          delBtn.disabled = true;
-          try {
-            const { error } = await withTimeout(db.from('labels').delete().eq('id', lbl.id), 10000);
-            if (error) { logError('renderManageLabels/delete', error); errorToast(error, 'Could not delete label'); return; }
-            labels = labels.filter(l => l.id !== lbl.id); DataModule.setLabels(labels);
-            localStorage.setItem(labelCacheKey(), JSON.stringify(labels));
-            row.remove();
-            if (!labels.length) list.innerHTML = '<div class="chips-empty">No labels yet — add one above ↑</div>';
-            toast('Deleted', 'ok');
-          } catch (err) {
-            logError('renderManageLabels/delete', err);
-            errorToast(err, 'Could not delete label');
-            delBtn.disabled = false;
-          }
+          const { error } = await db.from('labels').delete().eq('id', lbl.id);
+          if (error) { logError('renderManageLabels/delete', error); errorToast(error, 'Could not delete label'); return; }
+          labels = labels.filter(l => l.id !== lbl.id);
+          localStorage.setItem(labelCacheKey(), JSON.stringify(labels));
+          row.remove();
+          if (!labels.length) list.innerHTML = '<div class="chips-empty">No labels yet — add one above ↑</div>';
+          toast('Deleted', 'ok');
         });
 
         row.appendChild(dot); row.appendChild(name); row.appendChild(editBtn); row.appendChild(delBtn);
@@ -3541,15 +2920,14 @@
 
     async function addLabel(name) {
       name=name.trim();
-      if (!name) { toast('Label name required'); return; }
-      if (name.length > 32) { toast('Label name too long (max 32 chars)'); return; }
+      if (!name) return;
       if (labels.find(l=>l.name.toLowerCase()===name.toLowerCase())) { toast('Label already exists'); return; }
       if (!db) { toast('Add Supabase credentials first'); return; }
       const payload = {name};
       if (currentUser) payload.user_id = currentUser.id;
-      const {data,error}=await withTimeout(db.from('labels').insert(payload).select().single(), 10000);
+      const {data,error}=await db.from('labels').insert(payload).select().single();
       if (error || !data) { logError('addLabel', error); errorToast(error, 'Could not add label'); return; }
-      labels.unshift(data); DataModule.setLabels(labels);
+      labels.unshift(data);
       localStorage.setItem(labelCacheKey(),JSON.stringify(labels));
       renderChips();
       document.getElementById('nl-input').value='';
@@ -3562,32 +2940,21 @@
     // ════════════════════════════
     // SAVE EXPENSE
     // ════════════════════════════
-    let isSavingExpense = false;
-
     async function saveExpense() {
       if (!picked||parseAmt(raw)<=0) return;
-      if (isSavingExpense) return;  // Prevent double-submit on rapid clicks
-
-      isSavingExpense = true;
       const btn=document.getElementById('btn-save');
       btn.disabled=true; btn.innerHTML='<span class="spin"></span>';
+      if (!db) { toast('Add Supabase credentials first'); btn.disabled=false; btn.innerHTML='Save Expense'; return; }
+      const payload = { amount:parseAmt(raw), label_id:picked.id, label_name:picked.name };
+      if (currentUser) payload.user_id = currentUser.id;
+      const {error}=await db.from('expenses').insert(payload);
+      btn.innerHTML='Save Expense';
+      if (error) { logError('saveExpense', error); btn.disabled = false; errorToast(error, 'Could not save — try again'); return; }
 
-      try {
-        if (!db) { toast('Add Supabase credentials first'); return; }
-        const payload = { amount:parseAmt(raw), label_id:picked.id, label_name:picked.name };
-        if (currentUser) payload.user_id = currentUser.id;
-        const {error}=await withTimeout(db.from('expenses').insert(payload), 10000);
-        if (error) { logError('saveExpense', error); errorToast(error, 'Could not save — try again'); return; }
-
-        toast('Saved!','ok');
-        checkBudgetWarnings(picked.name);
-        raw=''; refreshDisplay(); picked=null;
-        slideBack();
-      } finally {
-        isSavingExpense = false;
-        btn.disabled = false;
-        btn.innerHTML='Save Expense';
-      }
+      toast('Saved!','ok');
+      checkBudgetWarnings(picked.name);
+      raw=''; refreshDisplay(); picked=null;
+      slideBack();
     }
 
     // ════════════════════════════
@@ -3604,15 +2971,25 @@
     async function _doLoadHistory() {
       const targetScreen = screen;
       const list = document.getElementById('tx-list');
-      list.innerHTML = `<div style="color:var(--muted);font-size:14px;padding:28px 0;text-align:center">Loading\u2026</div>`;
+      list.innerHTML = `<div style="color:var(--muted);font-size:14px;padding:28px 0;text-align:center">Loading…</div>`;
       document.getElementById('filter-row').innerHTML = '';
       activeFilter = null;
+
       if (!db) { list.innerHTML = `<div style="color:var(--muted);font-size:14px;padding:28px 0;text-align:center">No connection.</div>`; return; }
-      await DataModule.loadHistory();
+      const { data, error } = await db.from('expenses').select('*').order('created_at', { ascending: false }).limit(200);
+
+      if (error || !data) {
+        logError('loadHistory', error);
+        list.innerHTML = `<div style="color:var(--muted);font-size:14px;padding:28px 0;text-align:center">Could not load transactions — tap to retry</div>`;
+        toast('Could not load transactions — check your connection');
+        return;
+      }
+
+      if (!Array.isArray(data)) return;
       if (screen !== targetScreen) return;
-      allTxData = DataModule.getTransactions();
-      renderFilterChips(allTxData);
-      renderHistory(allTxData, null);
+      allTxData = data;
+      renderFilterChips(data);
+      renderHistory(data, null);
     }
 
     function renderFilterChips(data) {
@@ -3758,44 +3135,17 @@
 
     async function deleteExpense(id, rowEl) {
       if (!db) { toast('No DB connection'); return; }
-
-      // Store original styles for restoration if needed
-      const originalOpacity = rowEl.style.opacity;
-      const originalTransform = rowEl.style.transform;
-
       rowEl.style.transition='opacity .2s, transform .2s';
-      rowEl.style.opacity='0';
-      rowEl.style.transform='translateX(40px)';
-
-      try {
-        await new Promise(resolve => setTimeout(resolve, 200));
-
-        const {error}=await withTimeout(db.from('expenses').delete().eq('id',id), 10000);
-        if (error) {
-          logError('deleteExpense', error);
-          errorToast(error, 'Could not delete — try again');
-          // Restore only if element still in DOM
-          if (document.body.contains(rowEl)) {
-            rowEl.style.opacity = originalOpacity;
-            rowEl.style.transform = originalTransform;
-          }
-          return;
-        }
-
-        allTxData=allTxData.filter(t=>t.id!==id);
-        DataModule.setTransactions(allTxData);
+      rowEl.style.opacity='0'; rowEl.style.transform='translateX(40px)';
+      setTimeout(async()=>{
+        const {error}=await db.from('expenses').delete().eq('id',id);
+        if (error) { logError('deleteExpense', error); rowEl.style.opacity = '1'; rowEl.style.transform = ''; errorToast(error, 'Could not delete — try again'); return; }
         rowEl.remove();
+        allTxData=allTxData.filter(t=>t.id!==id);
         renderFilterChips(allTxData);
         renderHistory(allTxData, activeFilter);
         toast('Deleted','ok');
-      } catch (err) {
-        logError('deleteExpense', err);
-        if (document.body.contains(rowEl)) {
-          rowEl.style.opacity = originalOpacity;
-          rowEl.style.transform = originalTransform;
-        }
-        toast('Something went wrong');
-      }
+      },200);
     }
 
     // ════════════════════════════
@@ -3833,61 +3183,48 @@
       const amt=parseFloat(document.getElementById('modal-amt').value)||0;
       if (amt<=0) { toast('Enter a valid amount'); return; }
       if (!db) { toast('No DB connection'); return; }
-
-      // QUAL-03: Validate label still exists before saving (guards against label deleted while modal open)
-      if (editLabel && editLabel.id) {
-        // Ensure _labels is populated before validating
-        if (DataModule.getLabels().length === 0) {
-          await DataModule.loadLabels().catch(() => {});
-        }
-        if (!DataModule.validateLabelExists(editLabel.id)) {
-          toast('Label was deleted, saving as unlabeled');
-          editLabel = null;
-        }
-      }
-
       const btn=document.getElementById('modal-save');
       btn.innerHTML='<span class="spin" style="border-top-color:#09090C"></span>';
-
-      try {
-        // Conflict detection: check if another device edited this expense since modal opened
-        if (editTx._capturedAt) {
-          const { data: current } = await withTimeout(db
-            .from('expenses')
-            .select('updated_at')
-            .eq('id', editTx.id)
-            .single(), 10000);
-          if (current && current.updated_at !== editTx._capturedAt) {
-            // Conflict detected — inform user but proceed with save (last-write-wins)
-            toast('Note: this expense was edited on another device. Saving your version.');
-          }
+      // Conflict detection: check if another device edited this expense since modal opened
+      if (editTx._capturedAt) {
+        const { data: current } = await db
+          .from('expenses')
+          .select('updated_at')
+          .eq('id', editTx.id)
+          .single();
+        if (current && current.updated_at !== editTx._capturedAt) {
+          // Conflict detected — inform user but proceed with save (last-write-wins)
+          toast('Note: this expense was edited on another device. Saving your version.');
         }
-        const labelId = editLabel ? editLabel.id : null;
-        const labelName = editLabel ? editLabel.name : null;
-        const {error}=await withTimeout(db.from('expenses').update({amount:amt, label_id:labelId, label_name:labelName}).eq('id',editTx.id), 10000);
-        if (error) { logError('saveEdit', error); errorToast(error, 'Could not save changes — try again'); return; }
-
-        const idx=allTxData.findIndex(t=>t.id===editTx.id);
-        if (idx>=0 && idx<allTxData.length) {
-          allTxData[idx]={...allTxData[idx],amount:amt,label_id:labelId,label_name:labelName};
-          DataModule.setTransactions(allTxData);
-        } else if (idx < 0) {
-          toast('This transaction was deleted. Closing editor.');
-          closeEditModal();
-          return;
-        }
-        closeEditModal();
-        renderFilterChips(allTxData);
-        renderHistory(allTxData, activeFilter);
-        toast('Updated!','ok');
-      } finally {
-        btn.innerHTML='Save';
       }
+      const {error}=await db.from('expenses').update({amount:amt, label_id:editLabel.id, label_name:editLabel.name}).eq('id',editTx.id);
+      btn.innerHTML='Save';
+      if (error) { logError('saveEdit', error); errorToast(error, 'Could not save changes — try again'); return; }
+      const idx=allTxData.findIndex(t=>t.id===editTx.id);
+      if (idx>=0) { allTxData[idx]={...allTxData[idx],amount:amt,label_id:editLabel.id,label_name:editLabel.name}; }
+      closeEditModal();
+      renderFilterChips(allTxData);
+      renderHistory(allTxData, activeFilter);
+      toast('Updated!','ok');
     }
 
     // ════════════════════════════
     // ANALYTICS CHARTS
     // ════════════════════════════
+    function renderChart() {
+      const body = document.getElementById('chart-body');
+      body.innerHTML = '';
+      const pStart = periodStart(activeChartPeriod);
+      const data   = pStart ? allTxData.filter(t => t.created_at >= pStart) : allTxData;
+      if (data.length === 0) {
+        body.innerHTML = `<div class="chart-empty"><div style="font-size:44px;opacity:.28">📊</div><div style="font-size:14.5px;font-weight:500;color:var(--muted)">No expenses for this period.</div></div>`;
+        return;
+      }
+      if (activeChartType === 'donut') renderDonutChart(data, body);
+      if (activeChartType === 'bar')   renderBarChart(data, body);
+      if (activeChartType === 'line')  renderLineChart(data, body);
+    }
+
     function renderDonutChart(data, body) {
       const totals = {};
       data.forEach(t => { const k = t.label_name||'Unlabeled'; totals[k] = (totals[k]||0) + parseFloat(t.amount); });
@@ -3917,7 +3254,7 @@
         const {bg} = chipColor(name);
         const item = document.createElement('div');
         item.className = 'legend-item';
-        item.innerHTML = `<div class="legend-dot" style="background:${bg}"></div><div class="legend-name">${escapeHtml(name)}</div><div class="legend-pct">${(val/grand*100).toFixed(1)}%</div><div class="legend-amt">${sym()}${fmtNum(val)}</div>`;
+        item.innerHTML = `<div class="legend-dot" style="background:${bg}"></div><div class="legend-name">${name}</div><div class="legend-pct">${(val/grand*100).toFixed(1)}%</div><div class="legend-amt">${sym()}${fmtNum(val)}</div>`;
         legend.appendChild(item);
       });
       body.appendChild(legend);
@@ -4050,7 +3387,7 @@
         const {bg} = chipColor(name);
         const item = document.createElement('div');
         item.className = 'legend-item';
-        item.innerHTML = `<div class="legend-dot" style="background:${bg}"></div><div class="legend-name">${escapeHtml(name)}</div><div class="legend-pct">${(val/grand*100).toFixed(1)}%</div><div class="legend-amt">${sym()}${fmtNum(val)}</div>`;
+        item.innerHTML = `<div class="legend-dot" style="background:${bg}"></div><div class="legend-name">${name}</div><div class="legend-pct">${(val/grand*100).toFixed(1)}%</div><div class="legend-amt">${sym()}${fmtNum(val)}</div>`;
         legend.appendChild(item);
       });
       body.appendChild(legend);
@@ -4145,7 +3482,7 @@
       if (!btn) return;
       activeChartPeriod = btn.dataset.cp;
       document.querySelectorAll('#chart-period-tabs .ptab').forEach(b => b.classList.toggle('active', b === btn));
-      if (screen === 'chart') ChartModule.render(allTxData, activeChartPeriod, activeChartType);
+      if (screen === 'chart') renderChart();
     });
 
     // Chart type toggle
@@ -4154,7 +3491,7 @@
       if (!btn) return;
       activeChartType = btn.dataset.ct;
       document.querySelectorAll('.ctab').forEach(b => b.classList.toggle('active', b === btn));
-      ChartModule.render(allTxData, activeChartPeriod, activeChartType);
+      renderChart();
     });
 
     document.getElementById('btn-save').addEventListener('click', saveExpense);
@@ -4170,20 +3507,13 @@
       const payload = { user_id: currentUser.id, name, color: null, budget: null };
       const { data, error } = await db.from('labels').insert(payload).select().single();
       if (error) { logError('addLabel/manageLabels', error); errorToast(error, 'Could not add label'); return; }
-      labels.unshift(data); DataModule.setLabels(labels);
+      labels.unshift(data);
       localStorage.setItem(labelCacheKey(), JSON.stringify(labels));
       input.value = '';
       renderManageLabels();
       toast('Label added', 'ok');
     });
     document.getElementById('ml-input').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('btn-ml-add').click(); });
-
-    // Debug button clicks
-    document.getElementById('auth-submit').addEventListener('click', (e) => {
-      console.log('🖱️ Button clicked! Event:', e);
-      console.log('Button disabled:', e.target.disabled);
-      console.log('Button pointer-events:', window.getComputedStyle(e.target).pointerEvents);
-    });
 
     document.getElementById('modal-cancel').addEventListener('click', closeEditModal);
     document.getElementById('modal-save').addEventListener('click', saveEdit);
