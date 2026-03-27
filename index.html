@@ -98,12 +98,12 @@
 
     .screen {
       position: absolute; inset: 0; display: flex; flex-direction: column;
-      transition: transform 0.36s cubic-bezier(0.4,0,0.2,1), opacity 0.36s cubic-bezier(0.4,0,0.2,1);
+      transition: transform 0.36s cubic-bezier(0.4,0,0.2,1), opacity 0.36s cubic-bezier(0.4,0,0.2,1), visibility 0s 0s;
       will-change: transform, opacity;
-      z-index: 2; background: transparent;
+      z-index: 2; background: transparent; visibility: visible;
     }
-    .screen.off-right { transform: translateX(100%);  opacity: 0; pointer-events: none; }
-    .screen.off-left  { transform: translateX(-100%); opacity: 0; pointer-events: none; }
+    .screen.off-right { transform: translateX(100%);  opacity: 0; pointer-events: none; visibility: hidden; transition: transform 0.36s cubic-bezier(0.4,0,0.2,1), opacity 0.36s cubic-bezier(0.4,0,0.2,1), visibility 0s 0.36s; }
+    .screen.off-left  { transform: translateX(-100%); opacity: 0; pointer-events: none; visibility: hidden; transition: transform 0.36s cubic-bezier(0.4,0,0.2,1), opacity 0.36s cubic-bezier(0.4,0,0.2,1), visibility 0s 0.36s; }
 
     /* ── SHARED ── */
     .icon-btn {
@@ -2057,7 +2057,6 @@
             timeout: 60000,
           }
         });
-        const uid = currentUser?.id || cachedSession?.user?.id || 'anon';
         const encKey = await deriveEncryptionKey(uid);
         const encryptedCredId = await encryptCredentialId(new Uint8Array(cred.rawId), encKey);
         localStorage.setItem(bioKey(), '1');
