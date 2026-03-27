@@ -1078,6 +1078,41 @@
       </div>
     </div>
 
+    <!-- ══ SCREEN: DEBTS ══ -->
+    <div class="screen off-right has-tabbar" id="s-debts">
+      <div class="debts-header">
+        <span class="debts-title">Debts</span>
+        <button class="debts-add-btn" id="btn-debts-add" title="Add debt" aria-label="Add debt">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+      </div>
+      <div class="debts-summary">
+        <div class="debt-summary-card">
+          <div class="debt-summary-label">You are owed</div>
+          <div class="debt-summary-amount green" id="debts-total-owed">—</div>
+        </div>
+        <div class="debt-summary-card">
+          <div class="debt-summary-label">You owe</div>
+          <div class="debt-summary-amount red" id="debts-total-owing">—</div>
+        </div>
+      </div>
+      <div class="debts-list" id="debts-list">
+        <div class="debts-empty" id="debts-empty" style="display:none">No debts yet. Tap + to add one.</div>
+      </div>
+
+      <!-- Detail panel (slides over list) -->
+      <div class="debt-detail-panel" id="debt-detail-panel">
+        <div class="debt-detail-header">
+          <button class="debt-detail-back" id="btn-debt-detail-back" aria-label="Back">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <span class="debt-detail-name" id="debt-detail-name"></span>
+          <span class="debt-detail-balance-tag" id="debt-detail-balance-tag"></span>
+        </div>
+        <div class="debt-txs" id="debt-txs"></div>
+      </div>
+    </div>
+
     <!-- ══ SCREEN 8: ADMIN ══ -->
     <div class="screen off-right" id="s-admin">
       <div class="admin-header">
@@ -1231,13 +1266,43 @@
         </svg>
         <span class="tab-label">Budget</span>
       </button>
-      <button class="tab-btn" data-tab="feedback" title="Feedback">
+      <button class="tab-btn" data-tab="debts" title="Debts">
         <div class="tab-pip"></div>
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+          <circle cx="9" cy="7" r="4"/>
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+          <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
         </svg>
-        <span class="tab-label">Feedback</span>
+        <span class="tab-label">Debts</span>
       </button>
+    </div>
+
+    <!-- ADD DEBT SHEET -->
+    <div id="add-debt-overlay">
+      <div id="add-debt-sheet">
+        <div class="add-debt-title">Add Debt</div>
+        <div class="add-debt-field">
+          <label>Contact name</label>
+          <input class="add-debt-input" id="debt-name-input" type="text" placeholder="e.g. Alex" autocomplete="off" />
+        </div>
+        <div class="add-debt-field">
+          <label>Amount</label>
+          <input class="add-debt-input" id="debt-amount-input" type="number" inputmode="decimal" placeholder="0.00" />
+        </div>
+        <div class="add-debt-field">
+          <label>Direction</label>
+          <div class="direction-chips">
+            <button class="dir-chip active-lent" id="dir-lent" onclick="setDebtDir('lent')">I lent</button>
+            <button class="dir-chip" id="dir-borrowed" onclick="setDebtDir('borrowed')">I borrowed</button>
+          </div>
+        </div>
+        <div class="add-debt-field">
+          <label>Note (optional)</label>
+          <input class="add-debt-input" id="debt-note-input" type="text" placeholder="What for?" />
+        </div>
+        <button class="add-debt-save-btn" id="btn-debt-save">Save</button>
+      </div>
     </div>
 
   </div><!-- #app -->
@@ -2500,8 +2565,8 @@
     // ════════════════════════════
     // TAB BAR
     // ════════════════════════════
-    const TAB_ORDER = ['numpad', 'history', 'chart', 'budget', 'feedback'];
-    const TAB_SCREEN_IDS = { numpad:'s-numpad', history:'s-history', chart:'s-chart', budget:'s-budget', feedback:'s-feedback' };
+    const TAB_ORDER = ['numpad', 'history', 'chart', 'budget', 'debts'];
+    const TAB_SCREEN_IDS = { numpad:'s-numpad', history:'s-history', chart:'s-chart', budget:'s-budget', debts:'s-debts', feedback:'s-feedback' };
     const TAB_SCREENS_WITH_BAR = new Set(TAB_ORDER);
 
     function updateTabBar() {
@@ -2549,6 +2614,7 @@
       }
       if (target === 'budget') renderBudgetScreen();
       if (target === 'feedback') { fbRating = 1; applyFbState(1); }
+      if (target === 'debts') loadDebts();
       if (fromId === 's-feedback') resetFeedbackForm();
     }
 
@@ -4282,6 +4348,279 @@
       const pop = document.getElementById('profile-popover');
       const btn = document.getElementById('btn-profile');
       if (!pop.contains(e.target) && e.target !== btn) closeProfilePopover();
+    });
+
+    // ════════════════════════════
+    // DEBTS
+    // ════════════════════════════
+    let debtsData = [];
+    let currentDebtContact = null;
+    let debtDirection = 'lent';
+
+    function setDebtDir(dir) {
+      debtDirection = dir;
+      document.getElementById('dir-lent').className = 'dir-chip' + (dir === 'lent' ? ' active-lent' : '');
+      document.getElementById('dir-borrowed').className = 'dir-chip' + (dir === 'borrowed' ? ' active-borrowed' : '');
+    }
+
+    function openAddDebtSheet() {
+      document.getElementById('debt-name-input').value = '';
+      document.getElementById('debt-amount-input').value = '';
+      document.getElementById('debt-note-input').value = '';
+      setDebtDir('lent');
+      document.getElementById('add-debt-overlay').classList.add('open');
+      setTimeout(() => document.getElementById('debt-name-input').focus(), 320);
+    }
+
+    function closeAddDebtSheet() {
+      document.getElementById('add-debt-overlay').classList.remove('open');
+    }
+
+    async function saveDebt() {
+      if (!currentUser) return;
+      const name = document.getElementById('debt-name-input').value.trim();
+      const rawAmt = parseFloat(document.getElementById('debt-amount-input').value);
+      const note = document.getElementById('debt-note-input').value.trim();
+      if (!name) { toast('Enter a contact name', 'error'); return; }
+      if (!rawAmt || rawAmt <= 0) { toast('Enter a valid amount', 'error'); return; }
+      const btn = document.getElementById('btn-debt-save');
+      btn.disabled = true;
+      try {
+        const { error } = await db.from('debts').insert({
+          user_id: currentUser.id,
+          contact_name: name,
+          amount: rawAmt,
+          direction: debtDirection,
+          note: note || null,
+          settled: false
+        });
+        if (error) throw error;
+        closeAddDebtSheet();
+        await loadDebts();
+        toast('Debt saved', 'ok');
+      } catch(e) {
+        logError('saveDebt', e);
+        toast('Could not save debt', 'error');
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function loadDebts() {
+      if (!currentUser) return;
+      try {
+        const { data, error } = await db.from('debts')
+          .select('*')
+          .eq('user_id', currentUser.id)
+          .order('created_at', { ascending: false });
+        if (error) throw error;
+        debtsData = Array.isArray(data) ? data : [];
+        renderDebtsScreen();
+      } catch(e) {
+        logError('loadDebts', e);
+        toast('Could not load debts', 'error');
+      }
+    }
+
+    function renderDebtsScreen() {
+      const list = document.getElementById('debts-list');
+      const empty = document.getElementById('debts-empty');
+
+      // Group by contact name
+      const contacts = {};
+      debtsData.forEach(d => {
+        const key = d.contact_name.toLowerCase();
+        if (!contacts[key]) contacts[key] = { name: d.contact_name, entries: [] };
+        contacts[key].entries.push(d);
+      });
+
+      // Compute balances
+      let totalOwed = 0, totalOwing = 0;
+      Object.values(contacts).forEach(c => {
+        let bal = 0;
+        c.entries.forEach(e => {
+          if (e.settled) return;
+          bal += e.direction === 'lent' ? e.amount : -e.amount;
+        });
+        c.balance = bal;
+        if (bal > 0) totalOwed += bal;
+        else totalOwing += Math.abs(bal);
+      });
+
+      const currSym = sym();
+
+      document.getElementById('debts-total-owed').textContent = currSym + fmtNum(totalOwed, 2);
+      document.getElementById('debts-total-owing').textContent = currSym + fmtNum(totalOwing, 2);
+
+      const sorted = Object.values(contacts).sort((a,b) => Math.abs(b.balance) - Math.abs(a.balance));
+
+      if (!sorted.length) {
+        empty.style.display = '';
+        list.querySelectorAll('.debt-contact-row').forEach(el => el.remove());
+        return;
+      }
+      empty.style.display = 'none';
+
+      // Build rows
+      const fragment = document.createDocumentFragment();
+      sorted.forEach(c => {
+        const row = document.createElement('div');
+        row.className = 'debt-contact-row';
+        const initial = c.name.charAt(0).toUpperCase();
+        const balClass = c.balance >= 0 ? 'green' : 'red';
+        const balLabel = c.balance >= 0 ? 'owes you' : 'you owe';
+        const balDisplay = currSym + fmtNum(Math.abs(c.balance), 2);
+
+        const avatar = document.createElement('div');
+        avatar.className = 'debt-contact-avatar';
+        avatar.textContent = initial;
+
+        const info = document.createElement('div');
+        info.className = 'debt-contact-info';
+        const nameEl = document.createElement('div');
+        nameEl.className = 'debt-contact-name';
+        nameEl.textContent = c.name;
+        const sub = document.createElement('div');
+        sub.className = 'debt-contact-sub';
+        sub.textContent = c.balance === 0 ? 'settled' : balLabel;
+
+        const bal = document.createElement('div');
+        bal.className = 'debt-contact-balance ' + (c.balance === 0 ? 'green' : balClass);
+        bal.textContent = c.balance === 0 ? 'Settled' : balDisplay;
+
+        info.appendChild(nameEl);
+        info.appendChild(sub);
+        row.appendChild(avatar);
+        row.appendChild(info);
+        row.appendChild(bal);
+
+        row.addEventListener('click', () => openDebtDetail(c.name));
+        fragment.appendChild(row);
+      });
+
+      list.querySelectorAll('.debt-contact-row').forEach(el => el.remove());
+      list.appendChild(fragment);
+    }
+
+    function openDebtDetail(contactName) {
+      currentDebtContact = contactName;
+      const panel = document.getElementById('debt-detail-panel');
+      const nameEl = document.getElementById('debt-detail-name');
+      const balTag = document.getElementById('debt-detail-balance-tag');
+      const txList = document.getElementById('debt-txs');
+
+      nameEl.textContent = contactName;
+
+      const entries = debtsData.filter(d => d.contact_name.toLowerCase() === contactName.toLowerCase());
+      let bal = 0;
+      entries.forEach(e => { if (!e.settled) bal += e.direction === 'lent' ? e.amount : -e.amount; });
+
+      const currSym = sym();
+
+      if (bal > 0) {
+        balTag.textContent = 'owes you ' + currSym + fmtNum(bal, 2);
+        balTag.className = 'debt-detail-balance-tag green';
+      } else if (bal < 0) {
+        balTag.textContent = 'you owe ' + currSym + fmtNum(Math.abs(bal), 2);
+        balTag.className = 'debt-detail-balance-tag red';
+      } else {
+        balTag.textContent = 'Settled';
+        balTag.className = 'debt-detail-balance-tag green';
+      }
+
+      txList.innerHTML = '';
+      if (!entries.length) {
+        const emptyEl = document.createElement('div');
+        emptyEl.className = 'debts-empty';
+        emptyEl.textContent = 'No transactions';
+        txList.appendChild(emptyEl);
+      } else {
+        const frag = document.createDocumentFragment();
+        entries.forEach(e => {
+          const item = document.createElement('div');
+          item.className = 'debt-tx-item' + (e.settled ? ' settled' : '');
+
+          const left = document.createElement('div');
+          left.className = 'debt-tx-left';
+
+          const dir = document.createElement('div');
+          dir.className = 'debt-tx-dir ' + e.direction;
+          dir.textContent = e.direction === 'lent' ? 'You lent' : 'You borrowed';
+
+          const note = document.createElement('div');
+          note.className = 'debt-tx-note';
+          note.textContent = e.note || '—';
+
+          const date = document.createElement('div');
+          date.className = 'debt-tx-date';
+          date.textContent = new Date(e.created_at).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+
+          left.appendChild(dir);
+          left.appendChild(note);
+          left.appendChild(date);
+
+          const right = document.createElement('div');
+          right.className = 'debt-tx-right';
+
+          const amt = document.createElement('div');
+          amt.className = 'debt-tx-amount ' + e.direction;
+          amt.textContent = currSym + fmtNum(e.amount, 2);
+
+          const settleBtn = document.createElement('button');
+          settleBtn.className = 'debt-settle-btn';
+          settleBtn.textContent = e.settled ? 'Settled' : 'Settle';
+          if (!e.settled) {
+            settleBtn.addEventListener('click', async (ev) => {
+              ev.stopPropagation();
+              await settleDebtEntry(e.id, settleBtn, item);
+            });
+          }
+
+          right.appendChild(amt);
+          right.appendChild(settleBtn);
+
+          item.appendChild(left);
+          item.appendChild(right);
+          frag.appendChild(item);
+        });
+        txList.appendChild(frag);
+      }
+
+      panel.classList.add('open');
+    }
+
+    async function settleDebtEntry(id, btn, itemEl) {
+      btn.disabled = true;
+      try {
+        const { error } = await db.from('debts').update({ settled: true }).eq('id', id).eq('user_id', currentUser.id);
+        if (error) throw error;
+        const entry = debtsData.find(d => d.id === id);
+        if (entry) entry.settled = true;
+        itemEl.classList.add('settled');
+        btn.textContent = 'Settled';
+        if (currentDebtContact) openDebtDetail(currentDebtContact);
+        renderDebtsScreen();
+        toast('Marked as settled', 'ok');
+      } catch(e) {
+        logError('settleDebtEntry', e);
+        toast('Could not settle', 'error');
+        btn.disabled = false;
+      }
+    }
+
+    function closeDebtDetail() {
+      document.getElementById('debt-detail-panel').classList.remove('open');
+      currentDebtContact = null;
+    }
+
+    // Wire up debts event listeners on DOMContentLoaded
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('btn-debts-add').addEventListener('click', openAddDebtSheet);
+      document.getElementById('btn-debt-save').addEventListener('click', saveDebt);
+      document.getElementById('btn-debt-detail-back').addEventListener('click', closeDebtDetail);
+      document.getElementById('add-debt-overlay').addEventListener('click', (e) => {
+        if (e.target === document.getElementById('add-debt-overlay')) closeAddDebtSheet();
+      });
     });
 
     // ════════════════════════════
