@@ -4318,7 +4318,7 @@
       const name = input.value.trim();
       if (!name) return;
       if (!currentUser) return;
-      const payload = { user_id: currentUser.id, name, color: null, budget: null };
+      const payload = { user_id: currentUser.id, name };
       const { data, error } = await db.from('labels').insert(payload).select().single();
       if (error) { logError('addLabel/manageLabels', error); errorToast(error, 'Could not add label'); return; }
       labels.unshift(data); DataModule.setLabels(labels);
