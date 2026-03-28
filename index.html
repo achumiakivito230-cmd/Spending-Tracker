@@ -2613,8 +2613,7 @@
       // Data loading per target
       if (target === 'history') loadHistory();
       if (target === 'chart') {
-        if (allTxData.length === 0) loadHistory().then(() => ChartModule.render(allTxData, activeChartPeriod, activeChartType));
-        else ChartModule.render(allTxData, activeChartPeriod, activeChartType);
+        loadHistory().then(() => ChartModule.render(allTxData, activeChartPeriod, activeChartType));
       }
       if (target === 'budget') renderBudgetScreen();
       if (target === 'feedback') { fbRating = 1; applyFbState(1); }
@@ -2638,11 +2637,7 @@
       screen='chart';
       animateShapes();
       updateTabBar();
-      if (allTxData.length === 0) {
-        loadHistory().then(() => ChartModule.render(allTxData, activeChartPeriod, activeChartType));
-      } else {
-        ChartModule.render(allTxData, activeChartPeriod, activeChartType);
-      }
+      loadHistory().then(() => ChartModule.render(allTxData, activeChartPeriod, activeChartType));
     }
 
     function slideBack() {
