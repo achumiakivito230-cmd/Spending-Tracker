@@ -4319,10 +4319,10 @@
       if (!name) return;
       if (!currentUser) return;
       const payload = { user_id: currentUser.id, name };
-      const { data, error } = await db.from('labels').insert(payload).select().single();
+      const { error } = await db.from('labels').insert(payload);
       if (error) { logError('addLabel/manageLabels', error); errorToast(error, 'Could not add label'); return; }
-      labels.unshift(data); DataModule.setLabels(labels);
-      localStorage.setItem(labelCacheKey(), JSON.stringify(labels));
+      const { data: freshLabels } = await db.from('labels').select('*').eq('user_id', currentUser.id).order('created_at', { ascending: false });
+      if (freshLabels) { labels.length = 0; labels.push(...freshLabels); DataModule.setLabels(labels); localStorage.setItem(labelCacheKey(), JSON.stringify(labels)); }
       input.value = '';
       renderManageLabels();
       toast('Label added', 'ok');
